@@ -133,7 +133,8 @@ function RoomInner() {
 
       if (cancelled) return;
       if (error || !data) {
-        toast.error("Room not found");
+        if (error) console.error("load room error", error);
+        toast.error(error?.message || "Room not found");
         navigate.push("/multiplayer");
         return;
       }
