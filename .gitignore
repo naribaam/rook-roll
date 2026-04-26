@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.next
 dist
 dist-ssr
 .output
@@ -31,3 +32,5 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.*
+!.env.example

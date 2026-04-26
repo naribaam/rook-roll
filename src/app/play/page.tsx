@@ -127,6 +127,8 @@ function PlayInner() {
       if (finalizingRef.current) return;
       finalizingRef.current = true;
       try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
         const { data, error } = await supabase.functions.invoke("finalize-game", {
           body: {
             game_id: id,
@@ -134,6 +136,7 @@ function PlayInner() {
             reason: res.reason,
             move_quality: moveQualityRef.current,
           },
+          ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
         });
         if (error) throw error;
         const userIsWhite = playerColor === "white";
@@ -154,7 +157,11 @@ function PlayInner() {
         });
       } catch (e) {
         console.error("finalize failed", e);
-        toast.error("Could not finalize game");
+        const message =
+          typeof e === "object" && e && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Could not finalize game";
+        toast.error(message || "Could not finalize game");
         finalizingRef.current = false;
       }
     },

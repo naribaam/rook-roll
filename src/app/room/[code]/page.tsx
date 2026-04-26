@@ -302,8 +302,11 @@ function RoomInner() {
       if (!row || finalizingRef.current) return;
       finalizingRef.current = true;
       try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
         const { data, error } = await supabase.functions.invoke("finalize-game", {
           body: { game_id: row.id, result: res.result, reason: res.reason },
+          ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
         });
         if (error) throw error;
         const outcome =
@@ -324,7 +327,11 @@ function RoomInner() {
       } catch (e) {
         console.error("finalize failed", e);
         finalizingRef.current = false;
-        toast.error("Could not finalize game");
+        const message =
+          typeof e === "object" && e && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : "Could not finalize game";
+        toast.error(message || "Could not finalize game");
       }
     },
     [row, isWhite, isBlack, profile],

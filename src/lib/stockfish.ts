@@ -1,6 +1,6 @@
-/* Stockfish engine via CDN-loaded Web Worker.
- * Uses stockfish.js from jsDelivr CDN — no local WASM files needed.
- * Safe for Vercel deployment (no .wasm bundling issues).
+/* Stockfish engine via Web Worker.
+ * Prefer same-origin worker (`/stockfish/stockfish.js`) for production reliability.
+ * Fall back to CDN if the local asset is missing.
  */
 
 export type AnalysisResult = {
@@ -18,8 +18,19 @@ export type StockfishInstance = {
 const STOCKFISH_CDN_URL =
   "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
 
+function stockfishWorkerUrl(): string {
+  if (typeof window === "undefined") return STOCKFISH_CDN_URL;
+  // Served from `public/stockfish/stockfish.js`
+  return new URL("/stockfish/stockfish.js", window.location.href).toString();
+}
+
 export function createStockfish(): StockfishInstance {
-  const worker = new Worker(STOCKFISH_CDN_URL);
+  let worker: Worker;
+  try {
+    worker = new Worker(stockfishWorkerUrl());
+  } catch {
+    worker = new Worker(STOCKFISH_CDN_URL);
+  }
   const listeners: ((line: string) => void)[] = [];
 
   worker.onmessage = (e: MessageEvent) => {
