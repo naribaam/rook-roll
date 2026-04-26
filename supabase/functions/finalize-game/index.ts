@@ -205,6 +205,7 @@ Deno.serve(async (req: Request) => {
         body.move_quality.good * 2
       : 0;
 
+    const callerId = user.id;
     async function awardFor(
       uid: string | null,
       outcome: "win" | "loss" | "draw",
@@ -212,7 +213,7 @@ Deno.serve(async (req: Request) => {
     ) {
       if (!uid) return 0;
       const base = baseCoinsFor(outcome);
-      const total = base + (uid === user.id ? bonus : 0);
+      const total = base + (uid === callerId ? bonus : 0);
       if (total > 0) {
         const txType =
           outcome === "win" ? "win" : outcome === "draw" ? "draw" : "loss";
@@ -221,7 +222,7 @@ Deno.serve(async (req: Request) => {
           _amount: total,
           _type: txType,
           _description: `${outcome.toUpperCase()} reward${
-            uid === user.id && bonus > 0 ? ` + ${bonus} move bonus` : ""
+            uid === callerId && bonus > 0 ? ` + ${bonus} move bonus` : ""
           }`,
           _game_id: game.id,
         });
