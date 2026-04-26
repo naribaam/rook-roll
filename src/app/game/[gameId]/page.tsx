@@ -144,10 +144,7 @@ function Inner() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[auto_1fr_320px]">
-      <div className="hidden lg:block">
-        <EvalBar scoreCp={currentEval} mateIn={null} />
-      </div>
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
