@@ -1,5 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+"use client";
+
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { Chess } from "chess.js";
 import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
@@ -12,26 +14,6 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Copy, Flag, Users, Loader as Loader2, Handshake, X } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/room/$code")({
-  head: ({ params }) => ({
-    meta: [
-      { title: `Room ${params.code} — Gambit` },
-      { name: "description", content: "Live multiplayer chess room." },
-    ],
-  }),
-  component: RoomPage,
-});
-
-function RoomPage() {
-  return (
-    <Layout>
-      <AuthGate>
-        <RoomInner />
-      </AuthGate>
-    </Layout>
-  );
-}
 
 type MoveRow = {
   id: string;
@@ -77,10 +59,21 @@ function effectiveTimeMs(row: GameRow, side: "white" | "black", turnColor: strin
   return ms;
 }
 
+export default function RoomPage() {
+  return (
+    <Layout>
+      <AuthGate>
+        <RoomInner />
+      </AuthGate>
+    </Layout>
+  );
+}
+
 function RoomInner() {
-  const { code } = Route.useParams();
+  const params = useParams();
+  const code = params.code as string;
   const { user, profile } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useRouter();
   const [row, setRow] = useState<GameRow | null>(null);
   const [dbMoves, setDbMoves] = useState<MoveRow[]>([]);
   const [opponents, setOpponents] = useState<Record<string, Profile>>({});
@@ -97,10 +90,7 @@ function RoomInner() {
   }>(null);
   const finalizingRef = useRef(false);
   const hasJoinedRef = useRef(false);
-  // Track the latest move_number we've already applied to avoid re-applying
-  const appliedMoveCountRef = useRef(0);
 
-  // Rebuild chess state from DB moves (source of truth)
   const rebuildFromMoves = useCallback((moves: MoveRow[], gameRow: GameRow) => {
     const chess = chessRef.current;
     chess.reset();
@@ -109,39 +99,31 @@ function RoomInner() {
       try {
         chess.move({ from: m.from_sq, to: m.to_sq, promotion: m.promotion ?? undefined });
       } catch {
-        // If a move fails, fall back to FEN from the game row
         try { chess.load(gameRow.fen); } catch { /* ignore */ }
         break;
       }
     }
-    // As a safety check, if the chess FEN doesn't match the game row FEN,
-    // trust the game row FEN (it's the authoritative current state)
     if (chess.fen() !== gameRow.fen && gameRow.fen) {
       try { chess.load(gameRow.fen); } catch { /* ignore */ }
     }
     setTurnColor(chess.turn());
-    appliedMoveCountRef.current = sorted.length;
   }, []);
 
-  // Apply a single new move to the local chess instance
   const applyMove = useCallback((move: MoveRow) => {
     const chess = chessRef.current;
     try {
       chess.move({ from: move.from_sq, to: move.to_sq, promotion: move.promotion ?? undefined });
     } catch {
-      // Move already applied or invalid — reload from FEN
       try { chess.load(row?.fen ?? chess.fen()); } catch { /* ignore */ }
     }
     setTurnColor(chess.turn());
   }, [row]);
 
-  // Initial load + auto-join + realtime
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
 
     const load = async () => {
-      // Load game row
       const { data, error } = await supabase
         .from("games")
         .select("*")
@@ -152,13 +134,12 @@ function RoomInner() {
       if (cancelled) return;
       if (error || !data) {
         toast.error("Room not found");
-        navigate({ to: "/multiplayer" });
+        navigate.push("/multiplayer");
         return;
       }
       const g = data as unknown as GameRow;
       setRow(g);
 
-      // Load all moves from DB
       const { data: moveData } = await supabase
         .from("moves")
         .select("*")
@@ -170,7 +151,6 @@ function RoomInner() {
       setDbMoves(moves);
       rebuildFromMoves(moves, g);
 
-      // Auto-join as black if waiting and not creator
       if (
         g.status === "waiting" &&
         g.white_player !== user.id &&
@@ -190,7 +170,6 @@ function RoomInner() {
         if (jErr) console.error("join error", jErr);
       }
 
-      // If already finished, show result
       if (g.status === "finished" && g.result && !finalizingRef.current) {
         const isWhite = g.white_player === user.id;
         const isBlack = g.black_player === user.id;
@@ -217,7 +196,6 @@ function RoomInner() {
 
     load();
 
-    // Subscribe to game updates (clocks, status, draw offers, FEN)
     const gameChannel = supabase
       .channel(`room-game:${code}`)
       .on(
@@ -227,7 +205,6 @@ function RoomInner() {
           if (cancelled) return;
           const g = payload.new as unknown as GameRow;
           setRow(g);
-          // Sync chess position from the authoritative FEN
           const chess = chessRef.current;
           try { chess.load(g.fen); } catch { /* ignore */ }
           setTurnColor(chess.turn());
@@ -235,12 +212,9 @@ function RoomInner() {
       )
       .subscribe();
 
-    // Subscribe to new moves (realtime)
-    // We need the game_id for the moves filter, so we set it up after load
     let movesChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupMovesChannel = async () => {
-      // Wait for game to be loaded
       const { data: gameData } = await supabase
         .from("games")
         .select("id")
@@ -264,10 +238,8 @@ function RoomInner() {
             if (cancelled) return;
             const newMove = payload.new as unknown as MoveRow;
             setDbMoves((prev) => {
-              // Avoid duplicates
               if (prev.some((m) => m.id === newMove.id)) return prev;
               const next = [...prev, newMove];
-              // Apply the new move to local chess
               applyMove(newMove);
               return next;
             });
@@ -285,7 +257,6 @@ function RoomInner() {
     };
   }, [code, user, navigate, rebuildFromMoves, applyMove, profile]);
 
-  // Load opponent profiles whenever players change
   useEffect(() => {
     const ids = [row?.white_player, row?.black_player].filter(Boolean) as string[];
     if (ids.length === 0) return;
@@ -374,7 +345,6 @@ function RoomInner() {
       const fenAfter = chess.fen();
       setTurnColor(chess.turn());
 
-      // Compute new clock times
       const now = new Date().toISOString();
       const increment = (row.increment_seconds ?? 0) * 1000;
       let newWhiteMs = row.white_time_ms;
@@ -392,7 +362,6 @@ function RoomInner() {
       const moveNumber = dbMoves.length + 1;
       const playedBy = isWhite ? "white" : "black";
 
-      // Insert move into moves table (source of truth)
       const moveRow: Omit<MoveRow, "id" | "played_at"> = {
         game_id: row.id,
         move_number: moveNumber,
@@ -410,13 +379,11 @@ function RoomInner() {
         .then(({ error: moveErr }) => {
           if (moveErr) {
             console.error("move insert error", moveErr);
-            // Rollback local chess state
             chess.undo();
             setTurnColor(chess.turn());
             toast.error("Move rejected — please try again");
             return;
           }
-          // Move persisted — now update the game row (FEN, clocks, etc.)
           supabase
             .from("games")
             .update({
@@ -538,7 +505,6 @@ function RoomInner() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
-        {/* Top player */}
         <div className="flex items-center justify-between gap-3">
           <PlayerStripe
             player={topPlayer}
@@ -557,7 +523,6 @@ function RoomInner() {
           )}
         </div>
 
-        {/* Draw offer banner */}
         {drawOfferedByOpponent && !result && (
           <div className="flex items-center justify-between rounded-xl border border-accent/50 bg-accent/10 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -588,7 +553,6 @@ function RoomInner() {
           allowDragging={!!myTurn && !result}
         />
 
-        {/* Bottom player */}
         <div className="flex items-center justify-between gap-3">
           <PlayerStripe
             player={bottomPlayer}
@@ -607,7 +571,6 @@ function RoomInner() {
           )}
         </div>
 
-        {/* Waiting for opponent */}
         {row.status === "waiting" && (
           <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-5">
             <div className="mb-2 flex items-center gap-2 text-primary">
@@ -643,7 +606,6 @@ function RoomInner() {
       </div>
 
       <div className="space-y-4">
-        {/* Controls */}
         <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-3">
           <div className="text-xs">
             <p className="text-muted-foreground">Room</p>

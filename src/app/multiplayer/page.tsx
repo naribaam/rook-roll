@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+"use client";
+
 import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
 import { Button } from "@/components/ui/button";
@@ -6,18 +7,9 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Users, Sparkles, Plus, Clock } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/multiplayer")({
-  head: () => ({
-    meta: [
-      { title: "Multiplayer — Gambit" },
-      { name: "description", content: "Create a private chess room and play live with a friend." },
-    ],
-  }),
-  component: MultiplayerLobby,
-});
 
 type TimeControl = {
   id: string;
@@ -39,7 +31,11 @@ const TIME_CONTROLS: TimeControl[] = [
   { id: "classical_15", label: "15+10", category: "classical", limitSeconds: 900, incrementSeconds: 10 },
 ];
 
-function MultiplayerLobby() {
+function makeRoomCode() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+export default function MultiplayerPage() {
   return (
     <Layout>
       <AuthGate>
@@ -49,13 +45,9 @@ function MultiplayerLobby() {
   );
 }
 
-function makeRoomCode() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
-
 function Inner() {
   const { user, profile } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useRouter();
   const [creating, setCreating] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
@@ -90,7 +82,7 @@ function Inner() {
         .single();
 
       if (error || !data) throw error;
-      navigate({ to: `/room/${data.room_code}` });
+      navigate.push(`/room/${data.room_code}`);
     } catch (e) {
       console.error(e);
       toast.error("Could not create room");
@@ -114,7 +106,7 @@ function Inner() {
         toast.error("Room not found");
         return;
       }
-      navigate({ to: `/room/${code}` });
+      navigate.push(`/room/${code}`);
     } finally {
       setJoining(false);
     }
@@ -136,14 +128,12 @@ function Inner() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Create room */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
         <div className="mb-4 flex items-center gap-2 text-primary">
           <Plus className="h-5 w-5" />
           <h2 className="text-lg font-bold">Create a room</h2>
         </div>
 
-        {/* Time control picker */}
         <div className="mb-5">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <Clock className="h-3.5 w-3.5" /> Time control
@@ -183,7 +173,6 @@ function Inner() {
         </Button>
       </div>
 
-      {/* Join room */}
       <div className="rounded-2xl border border-border bg-card p-6">
         <div className="mb-3 flex items-center gap-2 text-primary">
           <Users className="h-5 w-5" />

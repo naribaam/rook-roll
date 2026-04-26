@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+"use client";
+
 import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
 import { useEffect, useState } from "react";
@@ -9,17 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Coins, Check, Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/store")({
-  head: () => ({
-    meta: [
-      { title: "Store — Gambit" },
-      { name: "description", content: "Spend your coins on premium boards and pieces." },
-    ],
-  }),
-  component: StorePage,
-});
-
-function StorePage() {
+export default function StorePage() {
   return (
     <Layout>
       <AuthGate>
@@ -125,7 +116,7 @@ function Inner() {
     const isActive = activeId === item.id;
     if (isActive) {
       return (
-        <Button variant="success" size="sm" disabled className="w-full">
+        <Button variant="outline" size="sm" disabled className="w-full">
           <Check className="h-4 w-4" /> Equipped
         </Button>
       );

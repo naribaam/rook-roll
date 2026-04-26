@@ -1,6 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { Chess } from "chess.js";
+import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
 import { ChessBoardView } from "@/components/ChessBoardView";
@@ -10,26 +13,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getEngine } from "@/lib/stockfish";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Sparkles,
-  Loader2,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Sparkles, Loader as Loader2 } from "lucide-react";
 
-export const Route = createFileRoute("/game/$gameId")({
-  head: () => ({
-    meta: [
-      { title: "Game analysis — Gambit" },
-      { name: "description", content: "AI-powered post-game analysis." },
-    ],
-  }),
-  component: GamePage,
-});
-
-function GamePage() {
+export default function GameAnalysisPage() {
   return (
     <Layout>
       <AuthGate>
@@ -41,9 +27,9 @@ function GamePage() {
 
 type MoveAnalysis = {
   san: string;
-  fen: string; // fen AFTER move
+  fen: string;
   fenBefore: string;
-  scoreCpAfterWhite: number | null; // white perspective
+  scoreCpAfterWhite: number | null;
   bestMove: string | null;
   quality: "best" | "great" | "good" | "inaccuracy" | "mistake" | "blunder";
   centipawnLoss: number;
@@ -60,14 +46,15 @@ function classify(loss: number): MoveAnalysis["quality"] {
 }
 
 function Inner() {
-  const { gameId } = Route.useParams();
+  const params = useParams();
+  const gameId = params.gameId as string;
   const { user, profile } = useAuth();
   const [pgn, setPgn] = useState<string | null>(null);
   const [userColor, setUserColor] = useState<"w" | "b">("w");
   const [analysis, setAnalysis] = useState<MoveAnalysis[] | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [cursor, setCursor] = useState(-1); // -1 = starting position
+  const [cursor, setCursor] = useState(-1);
 
   useEffect(() => {
     if (!user) return;
@@ -118,7 +105,6 @@ function Inner() {
       const afterTurnSign = m.fen.split(" ")[1] === "w" ? 1 : -1;
       const scoreBefore = (before.scoreCp ?? 0) * beforeTurnSign;
       const scoreAfter = (after.scoreCp ?? 0) * afterTurnSign;
-      // mover's perspective loss
       const moverSign = m.color === "w" ? 1 : -1;
       const loss = Math.max(0, scoreBefore * moverSign - scoreAfter * moverSign);
       out.push({
@@ -149,12 +135,7 @@ function Inner() {
   const summary = useMemo(() => {
     if (!userMoves.length) return null;
     const counts: Record<MoveAnalysis["quality"], number> = {
-      best: 0,
-      great: 0,
-      good: 0,
-      inaccuracy: 0,
-      mistake: 0,
-      blunder: 0,
+      best: 0, great: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0,
     };
     let totalLoss = 0;
     for (const m of userMoves) {
@@ -187,7 +168,7 @@ function Inner() {
               {analysis ? "Click a move to inspect" : "Run AI analysis to detect blunders"}
             </p>
           </div>
-          <Link to="/profile">
+          <Link href="/profile">
             <Button variant="ghost" size="sm">Back to profile</Button>
           </Link>
         </div>
@@ -210,7 +191,6 @@ function Inner() {
           }
         />
 
-        {/* Controls */}
         <div className="flex items-center justify-center gap-1">
           <Button variant="outline" size="icon" onClick={() => setCursor(-1)}>
             <ChevronsLeft className="h-4 w-4" />
@@ -241,7 +221,6 @@ function Inner() {
           </Button>
         </div>
 
-        {/* AI Coach */}
         {!analysis && (
           <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-6 text-center">
             <Sparkles className="mx-auto mb-2 h-8 w-8 text-primary" />
@@ -316,7 +295,7 @@ function MoveDetail({ move }: { move: MoveAnalysis }) {
           ? "border-amber-500/40 bg-amber-500/5"
           : "border-success/40 bg-success/5";
   const labels: Record<MoveAnalysis["quality"], string> = {
-    best: "Best move ★",
+    best: "Best move",
     great: "Great move !",
     good: "Good move",
     inaccuracy: "Inaccuracy ?!",
@@ -335,7 +314,7 @@ function MoveDetail({ move }: { move: MoveAnalysis }) {
         <div className="text-right">
           <p className="text-xs uppercase text-muted-foreground">{labels[move.quality]}</p>
           {move.centipawnLoss > 0 && (
-            <p className="font-mono text-sm">−{(move.centipawnLoss / 100).toFixed(1)}</p>
+            <p className="font-mono text-sm">-{(move.centipawnLoss / 100).toFixed(1)}</p>
           )}
         </div>
       </div>

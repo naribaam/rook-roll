@@ -1,16 +1,20 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Coins, Trophy, LogOut, User as UserIcon, Crown } from "lucide-react";
 
 export function Header() {
   const { user, profile, signInWithGoogle, signOut } = useAuth();
-  const navigate = useNavigate();
+  const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-8">
-        <Link to="/" className="flex items-center gap-2 font-bold">
+        <Link href="/" className="flex items-center gap-2 font-bold">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-[image:var(--gradient-hero)] text-primary-foreground shadow-[var(--shadow-glow)]">
             <Crown className="h-5 w-5" />
           </span>
@@ -20,10 +24,10 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          <NavLink to="/play">Play</NavLink>
-          <NavLink to="/multiplayer">Multiplayer</NavLink>
-          <NavLink to="/leaderboard">Leaderboard</NavLink>
-          <NavLink to="/store">Store</NavLink>
+          <NavLink href="/play" active={pathname === "/play"}>Play</NavLink>
+          <NavLink href="/multiplayer" active={pathname === "/multiplayer"}>Multiplayer</NavLink>
+          <NavLink href="/leaderboard" active={pathname === "/leaderboard"}>Leaderboard</NavLink>
+          <NavLink href="/store" active={pathname === "/store"}>Store</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">
@@ -37,7 +41,7 @@ export function Header() {
                 <Coins className="h-3.5 w-3.5" />
                 <span className="font-mono">{profile.coins}</span>
               </div>
-              <Link to="/profile">
+              <Link href="/profile">
                 <Button size="icon" variant="ghost" aria-label="Profile">
                   {profile.avatar_url ? (
                     <img
@@ -55,7 +59,7 @@ export function Header() {
                 variant="ghost"
                 onClick={async () => {
                   await signOut();
-                  navigate({ to: "/" });
+                  router.push("/");
                 }}
                 aria-label="Sign out"
               >
@@ -74,27 +78,24 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile nav */}
       <div className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 md:hidden">
-        <NavLink to="/play">Play</NavLink>
-        <NavLink to="/multiplayer">Multiplayer</NavLink>
-        <NavLink to="/leaderboard">Top</NavLink>
-        <NavLink to="/store">Store</NavLink>
-        <NavLink to="/profile">Profile</NavLink>
+        <NavLink href="/play" active={pathname === "/play"}>Play</NavLink>
+        <NavLink href="/multiplayer" active={pathname === "/multiplayer"}>Multiplayer</NavLink>
+        <NavLink href="/leaderboard" active={pathname === "/leaderboard"}>Top</NavLink>
+        <NavLink href="/store" active={pathname === "/store"}>Store</NavLink>
+        <NavLink href="/profile" active={pathname === "/profile"}>Profile</NavLink>
       </div>
     </header>
   );
 }
 
-function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+function NavLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
     <Link
-      to={to}
-      className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-      activeProps={{
-        className:
-          "rounded-md px-3 py-1.5 text-sm font-medium bg-secondary text-foreground",
-      }}
+      href={href}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary hover:text-foreground ${
+        active ? "bg-secondary text-foreground" : "text-muted-foreground"
+      }`}
     >
       {children}
     </Link>

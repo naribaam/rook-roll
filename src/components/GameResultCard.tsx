@@ -1,4 +1,6 @@
-import { Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Coins, Trophy, RotateCw, Sparkles } from "lucide-react";
 
@@ -65,7 +67,7 @@ export function GameResultCard({
 
       {moveBonus > 0 && (
         <p className="mb-4 rounded-md bg-secondary px-3 py-2 text-xs text-secondary-foreground">
-          +{moveBonus} bonus coins for high-quality moves ✨
+          +{moveBonus} bonus coins for high-quality moves
         </p>
       )}
 
@@ -76,11 +78,11 @@ export function GameResultCard({
           </Button>
         )}
         {analyzeHref && (
-          <Link to={analyzeHref}>
+          <Link href={analyzeHref}>
             <Button variant="outline">Analyze game</Button>
           </Link>
         )}
-        <Link to="/">
+        <Link href="/">
           <Button variant="ghost">Home</Button>
         </Link>
       </div>

@@ -60,7 +60,7 @@ export function ChessClock({ initialMs, active, onTimeout, lowTimeThresholdMs = 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active]);
 
   const isLow = displayMs > 0 && displayMs < lowTimeThresholdMs;
   const isEmpty = displayMs <= 0;

@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -13,27 +15,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Gambit — Play chess online, free" },
-      {
-        name: "description",
-        content:
-          "Play live chess, train against an AI engine, climb the global ELO leaderboard and unlock premium boards.",
-      },
-      { property: "og:title", content: "Gambit — Play chess online" },
-      {
-        property: "og:description",
-        content:
-          "A modern chess platform with AI training, real-time multiplayer and a coin-based cosmetic store.",
-      },
-    ],
-  }),
-  component: HomePage,
-});
-
-function HomePage() {
+export default function HomePage() {
   const { user, signInWithGoogle } = useAuth();
   return (
     <Layout>
@@ -63,12 +45,12 @@ function HomePage() {
           <div className="flex flex-wrap gap-3">
             {user ? (
               <>
-                <Link to="/play">
+                <Link href="/play">
                   <Button variant="gold" size="xl">
                     <Bot className="h-5 w-5" /> Play vs AI
                   </Button>
                 </Link>
-                <Link to="/multiplayer">
+                <Link href="/multiplayer">
                   <Button
                     size="xl"
                     variant="outline"
@@ -156,7 +138,7 @@ function FeatureCard({
 }) {
   return (
     <Link
-      to={href}
+      href={href}
       className="group rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[var(--shadow-elegant)]"
     >
       <span className="mb-3 inline-grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary group-hover:bg-primary group-hover:text-primary-foreground">

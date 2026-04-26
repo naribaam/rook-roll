@@ -1,4 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+"use client";
+
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Chess } from "chess.js";
 import { Layout } from "@/components/Layout";
@@ -11,18 +12,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { getEngine } from "@/lib/stockfish";
+import { useRouter } from "next/navigation";
 import { Bot, Flag, RotateCw } from "lucide-react";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/play")({
-  head: () => ({
-    meta: [
-      { title: "Play vs AI — Gambit" },
-      { name: "description", content: "Train against Stockfish at 20 difficulty levels." },
-    ],
-  }),
-  component: PlayPage,
-});
 
 const DIFFICULTY_PRESETS = [
   { skill: 0, depth: 4, label: "Beginner", elo: 600 },
@@ -38,7 +30,7 @@ type MoveItem = {
   quality?: "best" | "great" | "good" | "inaccuracy" | "mistake" | "blunder";
 };
 
-function PlayPage() {
+export default function PlayPage() {
   return (
     <Layout>
       <AuthGate>
@@ -50,7 +42,7 @@ function PlayPage() {
 
 function PlayInner() {
   const { user, profile } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useRouter();
 
   const gameRef = useRef(new Chess());
   const [fen, setFen] = useState(gameRef.current.fen());
@@ -73,7 +65,6 @@ function PlayInner() {
   }>(null);
   const finalizingRef = useRef(false);
   const moveQualityRef = useRef({ best: 0, great: 0, good: 0, blunder: 0 });
-  // Track move count for DB move_number
   const moveCountRef = useRef(0);
 
   const preset = DIFFICULTY_PRESETS[difficulty];
@@ -88,7 +79,6 @@ function PlayInner() {
     getEngine().setSkill(preset.skill);
   }, [preset.skill]);
 
-  // Persist a move to the moves table and update the game row
   const persistMove = useCallback(async (
     id: string,
     move: { from: string; to: string; promotion?: string; san: string },
@@ -222,7 +212,6 @@ function PlayInner() {
         const next = [...currentMoves, item];
         setMoves(next);
 
-        // Persist AI move to DB
         const aiSide = playerColor === "white" ? "black" : "white";
         await persistMove(id, { from, to, promotion, san: move.san }, newFen, aiSide);
 
@@ -300,7 +289,6 @@ function PlayInner() {
         const next = [...prev, placeholder];
         const currentId = gameId;
 
-        // Persist player move to DB
         if (currentId) {
           persistMove(currentId, { from, to, promotion: "q", san: move.san }, fenAfter, playerColor)
             .catch((e) => console.error("persist move error", e));
@@ -360,130 +348,136 @@ function PlayInner() {
 
   if (!gameStarted) {
     return (
-      <div className="mx-auto max-w-2xl rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-elegant)]">
-        <div className="mb-6 text-center">
-          <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
-            <Bot className="h-3.5 w-3.5" /> AI Training
-          </span>
-          <h1 className="text-3xl font-bold">Play vs Stockfish</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Pick your color and difficulty. Win to earn coins and ELO.
-          </p>
-        </div>
+      <Layout>
+        <AuthGate>
+          <div className="mx-auto max-w-2xl rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-elegant)]">
+            <div className="mb-6 text-center">
+              <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
+                <Bot className="h-3.5 w-3.5" /> AI Training
+              </span>
+              <h1 className="text-3xl font-bold">Play vs Stockfish</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Pick your color and difficulty. Win to earn coins and ELO.
+              </p>
+            </div>
 
-        {/* Color picker */}
-        <div className="mb-6">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Play as
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {(["white", "black"] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setPlayerColor(c)}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-3 font-semibold transition-all ${
-                  playerColor === c
-                    ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
-                    : "border-border bg-secondary/30 hover:border-primary/40"
-                }`}
-              >
-                <span className="text-2xl">{c === "white" ? "♔" : "♚"}</span>
-                <span className="capitalize">{c}</span>
-              </button>
-            ))}
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Play as
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["white", "black"] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setPlayerColor(c)}
+                    className={`flex items-center justify-center gap-2 rounded-xl border p-3 font-semibold transition-all ${
+                      playerColor === c
+                        ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
+                        : "border-border bg-secondary/30 hover:border-primary/40"
+                    }`}
+                  >
+                    <span className="text-2xl">{c === "white" ? "♔" : "♚"}</span>
+                    <span className="capitalize">{c}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Difficulty
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {DIFFICULTY_PRESETS.map((p, i) => (
+                  <button
+                    key={p.label}
+                    onClick={() => setDifficulty(i)}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                      difficulty === i
+                        ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
+                        : "border-border bg-secondary/30 hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-muted-foreground">Lvl {p.skill}</div>
+                    <div className="font-bold">{p.label}</div>
+                    <div className="font-mono text-xs text-muted-foreground">~{p.elo}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button variant="hero" size="xl" className="w-full" onClick={startGame}>
+              Start game
+            </Button>
           </div>
-        </div>
-
-        {/* Difficulty */}
-        <div className="mb-6">
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Difficulty
-          </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {DIFFICULTY_PRESETS.map((p, i) => (
-              <button
-                key={p.label}
-                onClick={() => setDifficulty(i)}
-                className={`rounded-xl border p-3 text-left transition-all ${
-                  difficulty === i
-                    ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
-                    : "border-border bg-secondary/30 hover:border-primary/40"
-                }`}
-              >
-                <div className="text-xs font-semibold text-muted-foreground">Lvl {p.skill}</div>
-                <div className="font-bold">{p.label}</div>
-                <div className="font-mono text-xs text-muted-foreground">~{p.elo}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <Button variant="hero" size="xl" className="w-full" onClick={startGame}>
-          Start game
-        </Button>
-      </div>
+        </AuthGate>
+      </Layout>
     );
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[auto_1fr_320px]">
-      <div className="hidden lg:block">
-        <EvalBar scoreCp={evalScore} mateIn={mateIn} />
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Stockfish — {preset.label}
-            </p>
-            <p className="text-sm">
-              {aiThinking ? "Thinking…" : result ? "Game over" : "Your move"}
-            </p>
+    <Layout>
+      <AuthGate>
+        <div className="grid gap-6 lg:grid-cols-[auto_1fr_320px]">
+          <div className="hidden lg:block">
+            <EvalBar scoreCp={evalScore} mateIn={mateIn} />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onResign} disabled={!!result}>
-              <Flag className="h-4 w-4" /> Resign
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onRematch}>
-              <RotateCw className="h-4 w-4" /> New
-            </Button>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Stockfish — {preset.label}
+                </p>
+                <p className="text-sm">
+                  {aiThinking ? "Thinking…" : result ? "Game over" : "Your move"}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={onResign} disabled={!!result}>
+                  <Flag className="h-4 w-4" /> Resign
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onRematch}>
+                  <RotateCw className="h-4 w-4" /> New
+                </Button>
+              </div>
+            </div>
+
+            <ChessBoardView
+              position={fen}
+              orientation={playerColor}
+              onPieceDrop={onDrop}
+              squareStyles={lastMoveHighlight}
+              boardSkin={profile?.active_board_skin ?? "classic"}
+              allowDragging={!aiThinking && !result}
+            />
+
+            {result && (
+              <GameResultCard
+                outcome={result.outcome}
+                reason={result.reason}
+                eloDelta={result.elo_delta}
+                newElo={result.new_elo}
+                coinsEarned={result.coins_earned}
+                newCoins={result.new_coins}
+                moveBonus={result.move_bonus}
+                onRematch={onRematch}
+                analyzeHref={gameId ? `/game/${gameId}` : undefined}
+              />
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <MoveHistory moves={moves} />
+            <button
+              onClick={() => navigate.push("/")}
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              Back to home
+            </button>
           </div>
         </div>
-
-        <ChessBoardView
-          position={fen}
-          orientation={playerColor}
-          onPieceDrop={onDrop}
-          squareStyles={lastMoveHighlight}
-          boardSkin={profile?.active_board_skin ?? "classic"}
-          allowDragging={!aiThinking && !result}
-        />
-
-        {result && (
-          <GameResultCard
-            outcome={result.outcome}
-            reason={result.reason}
-            eloDelta={result.elo_delta}
-            newElo={result.new_elo}
-            coinsEarned={result.coins_earned}
-            newCoins={result.new_coins}
-            moveBonus={result.move_bonus}
-            onRematch={onRematch}
-            analyzeHref={gameId ? `/game/${gameId}` : undefined}
-          />
-        )}
-      </div>
-
-      <div className="space-y-4">
-        <MoveHistory moves={moves} />
-        <button
-          onClick={() => navigate({ to: "/" })}
-          className="text-xs text-muted-foreground hover:underline"
-        >
-          Back to home
-        </button>
-      </div>
-    </div>
+      </AuthGate>
+    </Layout>
   );
 }

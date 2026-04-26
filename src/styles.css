@@ -1,22 +1,7 @@
-@import "tailwindcss" source(none);
-@source "../src";
+@import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-
-/*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
- */
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -68,21 +53,20 @@
 
 :root {
   --radius: 0.625rem;
-  /* Chess.com-inspired warm green/cream palette */
-  --background: oklch(0.985 0.015 95);          /* warm cream */
-  --foreground: oklch(0.22 0.03 140);           /* deep forest text */
+  --background: oklch(0.985 0.015 95);
+  --foreground: oklch(0.22 0.03 140);
   --card: oklch(1 0.005 95);
   --card-foreground: oklch(0.22 0.03 140);
   --popover: oklch(1 0.005 95);
   --popover-foreground: oklch(0.22 0.03 140);
-  --primary: oklch(0.58 0.14 142);              /* signature chess green */
+  --primary: oklch(0.58 0.14 142);
   --primary-foreground: oklch(0.99 0.01 95);
   --primary-glow: oklch(0.68 0.16 142);
-  --secondary: oklch(0.95 0.025 95);            /* cream surface */
+  --secondary: oklch(0.95 0.025 95);
   --secondary-foreground: oklch(0.25 0.04 140);
   --muted: oklch(0.94 0.02 95);
   --muted-foreground: oklch(0.45 0.03 140);
-  --accent: oklch(0.78 0.16 80);                /* warm gold */
+  --accent: oklch(0.78 0.16 80);
   --accent-foreground: oklch(0.2 0.04 140);
   --destructive: oklch(0.58 0.22 28);
   --destructive-foreground: oklch(0.99 0.01 95);
@@ -93,7 +77,6 @@
   --border: oklch(0.88 0.02 95);
   --input: oklch(0.93 0.02 95);
   --ring: oklch(0.58 0.14 142);
-  /* Board */
   --board-light: oklch(0.92 0.04 90);
   --board-dark:  oklch(0.55 0.10 130);
   --board-light-neon: oklch(0.96 0.05 200);
@@ -104,7 +87,6 @@
   --board-dark-marble:  oklch(0.55 0.04 280);
   --board-light-glass: oklch(0.93 0.025 220);
   --board-dark-glass:  oklch(0.4 0.07 235);
-  /* Gradients & shadows */
   --gradient-hero: linear-gradient(135deg, oklch(0.58 0.14 142), oklch(0.45 0.12 155));
   --gradient-gold: linear-gradient(135deg, oklch(0.82 0.16 85), oklch(0.7 0.18 70));
   --gradient-surface: linear-gradient(180deg, oklch(0.99 0.01 95), oklch(0.95 0.02 95));

@@ -1,18 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+"use client";
+
 import { Layout } from "@/components/Layout";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy, Crown, Medal } from "lucide-react";
-
-export const Route = createFileRoute("/leaderboard")({
-  head: () => ({
-    meta: [
-      { title: "Leaderboard — Gambit" },
-      { name: "description", content: "Top chess players ranked by ELO." },
-    ],
-  }),
-  component: LeaderboardPage,
-});
 
 type Row = {
   id: string;
@@ -23,7 +14,7 @@ type Row = {
   games_won: number;
 };
 
-function LeaderboardPage() {
+export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
 

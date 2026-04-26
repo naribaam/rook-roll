@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
 import { useAuth } from "@/lib/auth";
@@ -6,17 +8,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Coins, Trophy, Swords, Crown, Bot, Users } from "lucide-react";
 
-export const Route = createFileRoute("/profile")({
-  head: () => ({
-    meta: [
-      { title: "Profile — Gambit" },
-      { name: "description", content: "Your stats, rating and recent games." },
-    ],
-  }),
-  component: ProfilePage,
-});
-
-function ProfilePage() {
+export default function ProfilePage() {
   return (
     <Layout>
       <AuthGate>
@@ -66,7 +58,6 @@ function Inner() {
 
   return (
     <div className="space-y-8">
-      {/* Hero card */}
       <div className="rounded-3xl bg-[image:var(--gradient-hero)] p-8 text-primary-foreground shadow-[var(--shadow-elegant)]">
         <div className="flex flex-wrap items-center gap-6">
           {profile.avatar_url ? (
@@ -93,21 +84,19 @@ function Inner() {
         </div>
       </div>
 
-      {/* W/L/D */}
       <div className="grid gap-3 sm:grid-cols-3">
         <ResultCount label="Wins" value={profile.games_won} tone="text-success" />
         <ResultCount label="Draws" value={profile.games_drawn} tone="text-accent" />
         <ResultCount label="Losses" value={profile.games_lost} tone="text-destructive" />
       </div>
 
-      {/* History */}
       <div>
         <h2 className="mb-3 text-xl font-bold">Recent games</h2>
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           {games.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               No finished games yet —{" "}
-              <Link to="/play" className="text-primary underline">
+              <Link href="/play" className="text-primary underline">
                 play one
               </Link>
               .
@@ -129,7 +118,7 @@ function Inner() {
                 return (
                   <li key={g.id}>
                     <Link
-                      to={`/game/${g.id}`}
+                      href={`/game/${g.id}`}
                       className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 hover:bg-secondary/40"
                     >
                       <span className="grid h-8 w-8 place-items-center rounded-full bg-secondary">

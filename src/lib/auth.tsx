@@ -1,3 +1,5 @@
+"use client";
+
 import {
   createContext,
   useContext,
@@ -7,7 +9,6 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 
 export type Profile = {
   id: string;
@@ -56,12 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listener FIRST
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        // defer to avoid deadlock
         setTimeout(() => {
           fetchProfile(s.user.id).then(setProfile);
         }, 0);
@@ -86,7 +85,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Realtime: keep profile in sync (coins/elo updates from edge function)
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -110,9 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signInWithGoogle = async () => {
-    const redirect_uri =
-      typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
-    await lovable.auth.signInWithOAuth("google", { redirect_uri });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) console.error("Google sign-in error", error);
   };
 
   const signOut = async () => {
