@@ -215,7 +215,7 @@ function Inner() {
             <Sparkles className="mx-auto mb-2 h-8 w-8 text-primary" />
             <h3 className="mb-1 font-bold">AI Coach</h3>
             <p className="mb-4 text-sm text-muted-foreground">
-              Analyze every move with Stockfish to spot inaccuracies, mistakes and blunders.
+              Analyze every move to spot inaccuracies, mistakes and blunders.
             </p>
             <Button variant="hero" onClick={runAnalysis} disabled={analyzing}>
               {analyzing ? `Analyzing… ${progress}%` : "Run analysis"}

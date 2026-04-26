@@ -77,7 +77,7 @@ export default function HomePage() {
         <FeatureCard
           icon={<Bot className="h-5 w-5" />}
           title="AI training"
-          desc="Stockfish 18 in your browser. 20 difficulty levels."
+          desc="Play against AI with multiple difficulty levels."
           href="/play"
         />
         <FeatureCard

@@ -293,7 +293,7 @@ function PlayInner() {
               <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
                 <Bot className="h-3.5 w-3.5" /> AI Training
               </span>
-              <h1 className="text-3xl font-bold">Play vs Stockfish</h1>
+              <h1 className="text-3xl font-bold">Play vs AI</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 Pick your color and difficulty. Win to earn coins and ELO.
               </p>

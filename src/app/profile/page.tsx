@@ -126,7 +126,7 @@ function Inner() {
                       </span>
                       <div>
                         <p className="text-sm font-semibold">
-                          {g.mode === "ai" ? "vs Stockfish" : "Multiplayer"}
+                          {g.mode === "ai" ? "vs AI" : "Multiplayer"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(g.finished_at ?? g.created_at).toLocaleString()}

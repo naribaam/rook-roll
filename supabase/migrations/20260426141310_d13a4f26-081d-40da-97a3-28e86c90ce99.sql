@@ -49,7 +49,7 @@ create table public.games (
   status public.game_status not null default 'waiting',
   white_player uuid references public.profiles(id) on delete set null,
   black_player uuid references public.profiles(id) on delete set null,
-  ai_difficulty integer, -- 1..20 stockfish skill
+  ai_difficulty integer, -- 1..20 AI skill
   ai_color text check (ai_color in ('white','black')),
   fen text not null default 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   pgn text not null default '',
