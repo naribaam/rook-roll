@@ -281,8 +281,11 @@ function PlayInner() {
     }
 
     if (error || !data) {
-      toast.error("Could not start game");
-      console.error(error);
+      const message =
+        (error as { message?: string } | null)?.message ||
+        "Could not start game";
+      toast.error(message);
+      console.error("startGame insert failed", error);
       return;
     }
     setGameId(data.id);
