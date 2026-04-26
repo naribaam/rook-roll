@@ -11,6 +11,7 @@ import { EvalBar } from "@/components/EvalBar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { getEngine } from "@/lib/stockfish";
 import { useRouter } from "next/navigation";
 import { Bot, Flag, RotateCw } from "lucide-react";
@@ -244,7 +245,8 @@ function PlayInner() {
     setMateIn(null);
     finalizingRef.current = false;
 
-    const baseInsert = {
+    type GameInsert = Database["public"]["Tables"]["games"]["Insert"];
+    const baseInsert: GameInsert = {
         mode: "ai",
         status: "active",
         white_player: playerColor === "white" ? user.id : null,
@@ -256,7 +258,7 @@ function PlayInner() {
         pgn: "",
         white_elo_before: playerColor === "white" ? (profile?.elo ?? 1200) : preset.elo,
         black_elo_before: playerColor === "black" ? (profile?.elo ?? 1200) : preset.elo,
-      } as const;
+      };
 
     let { data, error } = await supabase
       .from("games")
@@ -268,7 +270,7 @@ function PlayInner() {
     // Retry with a minimal payload so the app stays usable.
     if (error && (error as { code?: string; message?: string }).code === "PGRST204") {
       console.error("games insert schema mismatch; retrying without ai fields", error);
-      const minimalInsert: Record<string, unknown> = { ...baseInsert };
+      const minimalInsert: GameInsert = { ...baseInsert };
       delete minimalInsert.ai_difficulty;
       delete minimalInsert.ai_color;
       ({ data, error } = await supabase
