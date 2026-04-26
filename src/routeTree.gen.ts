@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StoreRouteImport } from './routes/store'
 import { Route as PlayRouteImport } from './routes/play'
 import { Route as MultiplayerRouteImport } from './routes/multiplayer'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomCodeRouteImport } from './routes/room.$code'
 
+const StoreRoute = StoreRouteImport.update({
+  id: '/store',
+  path: '/store',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlayRoute = PlayRouteImport.update({
   id: '/play',
   path: '/play',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/leaderboard': typeof LeaderboardRoute
   '/multiplayer': typeof MultiplayerRoute
   '/play': typeof PlayRoute
+  '/store': typeof StoreRoute
   '/room/$code': typeof RoomCodeRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof LeaderboardRoute
   '/multiplayer': typeof MultiplayerRoute
   '/play': typeof PlayRoute
+  '/store': typeof StoreRoute
   '/room/$code': typeof RoomCodeRoute
 }
 export interface FileRoutesById {
@@ -61,19 +69,27 @@ export interface FileRoutesById {
   '/leaderboard': typeof LeaderboardRoute
   '/multiplayer': typeof MultiplayerRoute
   '/play': typeof PlayRoute
+  '/store': typeof StoreRoute
   '/room/$code': typeof RoomCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/leaderboard' | '/multiplayer' | '/play' | '/room/$code'
+  fullPaths:
+    | '/'
+    | '/leaderboard'
+    | '/multiplayer'
+    | '/play'
+    | '/store'
+    | '/room/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/leaderboard' | '/multiplayer' | '/play' | '/room/$code'
+  to: '/' | '/leaderboard' | '/multiplayer' | '/play' | '/store' | '/room/$code'
   id:
     | '__root__'
     | '/'
     | '/leaderboard'
     | '/multiplayer'
     | '/play'
+    | '/store'
     | '/room/$code'
   fileRoutesById: FileRoutesById
 }
@@ -82,11 +98,19 @@ export interface RootRouteChildren {
   LeaderboardRoute: typeof LeaderboardRoute
   MultiplayerRoute: typeof MultiplayerRoute
   PlayRoute: typeof PlayRoute
+  StoreRoute: typeof StoreRoute
   RoomCodeRoute: typeof RoomCodeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/store': {
+      id: '/store'
+      path: '/store'
+      fullPath: '/store'
+      preLoaderRoute: typeof StoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/play': {
       id: '/play'
       path: '/play'
@@ -130,6 +154,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeaderboardRoute: LeaderboardRoute,
   MultiplayerRoute: MultiplayerRoute,
   PlayRoute: PlayRoute,
+  StoreRoute: StoreRoute,
   RoomCodeRoute: RoomCodeRoute,
 }
 export const routeTree = rootRouteImport
