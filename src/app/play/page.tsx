@@ -268,15 +268,12 @@ function PlayInner() {
     // Retry with a minimal payload so the app stays usable.
     if (error && (error as { code?: string; message?: string }).code === "PGRST204") {
       console.error("games insert schema mismatch; retrying without ai fields", error);
+      const minimalInsert: Record<string, unknown> = { ...baseInsert };
+      delete minimalInsert.ai_difficulty;
+      delete minimalInsert.ai_color;
       ({ data, error } = await supabase
         .from("games")
-        .insert({
-          ...baseInsert,
-          // @ts-expect-error - intentionally omit when column doesn't exist
-          ai_difficulty: undefined,
-          // @ts-expect-error - intentionally omit when column doesn't exist
-          ai_color: undefined,
-        })
+        .insert(minimalInsert)
         .select()
         .single());
     }
