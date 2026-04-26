@@ -189,6 +189,11 @@ function PlayInner() {
         pgn: "",
         white_elo_before: playerColor === "white" ? (profile?.elo ?? 1200) : preset.elo,
         black_elo_before: playerColor === "black" ? (profile?.elo ?? 1200) : preset.elo,
+        time_control: "unlimited",
+        time_limit_seconds: null,
+        increment_seconds: 0,
+        white_time_ms: null,
+        black_time_ms: null,
       })
       .select()
       .single();
