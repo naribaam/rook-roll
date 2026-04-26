@@ -31,14 +31,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Gambit — Play chess online, free" },
+      { title: "Lovable App" },
       {
         name: "description",
         content:
           "Play chess online, climb the leaderboard, train against AI and earn coins to unlock premium boards and pieces.",
       },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Gambit — Play chess online" },
+      { property: "og:title", content: "Lovable App" },
       {
         property: "og:description",
         content:
@@ -47,6 +47,12 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Lovable App" },
+      { name: "description", content: "Rook & Roll is a full-featured web platform for playing chess, offering AI challenges and multiplayer matches." },
+      { property: "og:description", content: "Rook & Roll is a full-featured web platform for playing chess, offering AI challenges and multiplayer matches." },
+      { name: "twitter:description", content: "Rook & Roll is a full-featured web platform for playing chess, offering AI challenges and multiplayer matches." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fcd8604a-09f8-4d41-a6b0-eb7194893ae8/id-preview-133e4132--baf1a1bb-2a50-4ff3-8add-03cf3d1ce96e.lovable.app-1777214080274.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fcd8604a-09f8-4d41-a6b0-eb7194893ae8/id-preview-133e4132--baf1a1bb-2a50-4ff3-8add-03cf3d1ce96e.lovable.app-1777214080274.png" },
     ],
     links: [
       {
