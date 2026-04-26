@@ -11,6 +11,7 @@ import { MoveHistory } from "@/components/MoveHistory";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { getEngine } from "@/lib/stockfish";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Sparkles, Loader as Loader2 } from "lucide-react";
 
 export default function GameAnalysisPage() {
@@ -92,18 +93,27 @@ function Inner() {
     if (!positions) return;
     setAnalyzing(true);
     setProgress(0);
+    const eng = getEngine();
+    await eng.init(20);
     const out: MoveAnalysis[] = [];
     for (let i = 0; i < positions.moves.length; i++) {
       const m = positions.moves[i];
-      // Without engine, set default values
+      const before = await eng.analyze(m.fenBefore, 12);
+      const after = await eng.analyze(m.fen, 12);
+      const beforeTurnSign = m.fenBefore.split(" ")[1] === "w" ? 1 : -1;
+      const afterTurnSign = m.fen.split(" ")[1] === "w" ? 1 : -1;
+      const scoreBefore = (before.scoreCp ?? 0) * beforeTurnSign;
+      const scoreAfter = (after.scoreCp ?? 0) * afterTurnSign;
+      const moverSign = m.color === "w" ? 1 : -1;
+      const loss = Math.max(0, scoreBefore * moverSign - scoreAfter * moverSign);
       out.push({
         san: m.san,
         fen: m.fen,
         fenBefore: m.fenBefore,
-        scoreCpAfterWhite: null,
-        bestMove: null,
-        quality: "good",
-        centipawnLoss: 0,
+        scoreCpAfterWhite: scoreAfter,
+        bestMove: before.bestMove,
+        quality: classify(loss),
+        centipawnLoss: Math.round(loss),
         isUserMove: m.color === userColor,
       });
       setProgress(Math.round(((i + 1) / positions.moves.length) * 100));

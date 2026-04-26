@@ -10,6 +10,7 @@ import { GameResultCard } from "@/components/GameResultCard";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { getEngine } from "@/lib/stockfish";
 import { useRouter } from "next/navigation";
 import { Bot, Flag, RotateCw } from "lucide-react";
 import { toast } from "sonner";
@@ -65,6 +66,15 @@ function PlayInner() {
 
   const preset = DIFFICULTY_PRESETS[difficulty];
   const aiColor = playerColor === "white" ? "b" : "w";
+
+  useEffect(() => {
+    const eng = getEngine();
+    eng.init(preset.skill).catch((e) => console.error("engine init failed", e));
+  }, []);
+
+  useEffect(() => {
+    getEngine().setSkill(preset.skill);
+  }, [preset.skill]);
 
   const persistMove = useCallback(async (
     id: string,
@@ -150,16 +160,58 @@ function PlayInner() {
 
   const classifyMove = useCallback(
     async (fenBefore: string, fenAfter: string): Promise<MoveItem["quality"]> => {
-      // Without engine, classify as good
-      return "good";
+      try {
+        const eng = getEngine();
+        const before = await eng.analyze(fenBefore, 10);
+        const after = await eng.analyze(fenAfter, 10);
+        const beforeSign = fenBefore.split(" ")[1] === "w" ? 1 : -1;
+        const afterSign = fenAfter.split(" ")[1] === "w" ? 1 : -1;
+        const scoreBefore = (before.scoreCp ?? 0) * beforeSign;
+        const scoreAfter = (after.scoreCp ?? 0) * afterSign;
+        const playerSign = playerColor === "white" ? 1 : -1;
+        const playerLoss = (scoreBefore - scoreAfter) * playerSign;
+        if (playerLoss <= 10) { moveQualityRef.current.best++; return "best"; }
+        if (playerLoss <= 50) { moveQualityRef.current.great++; return "great"; }
+        if (playerLoss <= 100) { moveQualityRef.current.good++; return "good"; }
+        if (playerLoss <= 200) return "inaccuracy";
+        if (playerLoss <= 350) return "mistake";
+        moveQualityRef.current.blunder++;
+        return "blunder";
+      } catch {
+        return "good";
+      }
     },
     [playerColor],
   );
 
   const playAi = useCallback(
     async (id: string, currentMoves: MoveItem[]) => {
-      // AI disabled without engine
-      return;
+      const game = gameRef.current;
+      if (game.isGameOver() || finalizingRef.current) return;
+      setAiThinking(true);
+      try {
+        const eng = getEngine();
+        const analysisResult = await eng.analyze(game.fen(), preset.depth);
+        if (!analysisResult.bestMove) return;
+        const from = analysisResult.bestMove.slice(0, 2);
+        const to = analysisResult.bestMove.slice(2, 4);
+        const promotion = analysisResult.bestMove.length === 5 ? analysisResult.bestMove[4] : undefined;
+        const move = game.move({ from, to, promotion });
+        if (!move) return;
+        const newFen = game.fen();
+        setFen(newFen);
+        const item: MoveItem = { san: move.san, fen: newFen };
+        const next = [...currentMoves, item];
+        setMoves(next);
+
+        const aiSide = playerColor === "white" ? "black" : "white";
+        await persistMove(id, { from, to, promotion, san: move.san }, newFen, aiSide);
+
+        const over = checkGameOver();
+        if (over) await finalize(id, over);
+      } finally {
+        setAiThinking(false);
+      }
     },
     [preset.depth, persistMove, checkGameOver, finalize, playerColor],
   );
