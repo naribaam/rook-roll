@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PlayRouteImport } from './routes/play'
+import { Route as MultiplayerRouteImport } from './routes/multiplayer'
 import { Route as IndexRouteImport } from './routes/index'
 
 const PlayRoute = PlayRouteImport.update({
   id: '/play',
   path: '/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MultiplayerRoute = MultiplayerRouteImport.update({
+  id: '/multiplayer',
+  path: '/multiplayer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,27 +31,31 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/multiplayer': typeof MultiplayerRoute
   '/play': typeof PlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/multiplayer': typeof MultiplayerRoute
   '/play': typeof PlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/multiplayer': typeof MultiplayerRoute
   '/play': typeof PlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/play'
+  fullPaths: '/' | '/multiplayer' | '/play'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/play'
-  id: '__root__' | '/' | '/play'
+  to: '/' | '/multiplayer' | '/play'
+  id: '__root__' | '/' | '/multiplayer' | '/play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MultiplayerRoute: typeof MultiplayerRoute
   PlayRoute: typeof PlayRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/play'
       fullPath: '/play'
       preLoaderRoute: typeof PlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/multiplayer': {
+      id: '/multiplayer'
+      path: '/multiplayer'
+      fullPath: '/multiplayer'
+      preLoaderRoute: typeof MultiplayerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MultiplayerRoute: MultiplayerRoute,
   PlayRoute: PlayRoute,
 }
 export const routeTree = rootRouteImport
