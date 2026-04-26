@@ -37,17 +37,42 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function fetchProfile(userId: string): Promise<Profile | null> {
+async function ensureProfile(user: User): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", userId)
+    .eq("id", user.id)
     .maybeSingle();
+
   if (error) {
     console.error("fetchProfile error", error);
     return null;
   }
-  return data as Profile | null;
+
+  if (data) return data as Profile;
+
+  // Profile doesn't exist yet — create it
+  const meta = user.user_metadata ?? {};
+  const name = meta.full_name || meta.name || user.email?.split("@")[0] || "Player";
+  const avatarUrl = meta.avatar_url || meta.picture || null;
+
+  const { data: newProfile, error: insertErr } = await supabase
+    .from("profiles")
+    .insert({
+      id: user.id,
+      email: user.email,
+      name,
+      avatar_url: avatarUrl,
+    })
+    .select()
+    .maybeSingle();
+
+  if (insertErr) {
+    console.error("createProfile error", insertErr);
+    return null;
+  }
+
+  return newProfile as Profile | null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -62,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
       if (s?.user) {
         setTimeout(() => {
-          fetchProfile(s.user.id).then(setProfile);
+          ensureProfile(s.user).then(setProfile);
         }, 0);
       } else {
         setProfile(null);
@@ -73,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        fetchProfile(s.user.id).then((p) => {
+        ensureProfile(s.user).then((p) => {
           setProfile(p);
           setLoading(false);
         });
@@ -124,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
-      const p = await fetchProfile(user.id);
+      const p = await ensureProfile(user);
       setProfile(p);
     }
   };

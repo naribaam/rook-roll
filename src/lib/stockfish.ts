@@ -15,7 +15,8 @@ export type StockfishInstance = {
   destroy: () => void;
 };
 
-const STOCKFISH_CDN_URL = "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
+const STOCKFISH_CDN_URL =
+  "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
 
 export function createStockfish(): StockfishInstance {
   const worker = new Worker(STOCKFISH_CDN_URL);
@@ -46,9 +47,6 @@ export function createStockfish(): StockfishInstance {
   };
 }
 
-/* High-level engine wrapper with init/analyze API.
- * Singleton pattern — use getEngine() everywhere. */
-
 export class StockfishEngine {
   private sf: StockfishInstance | null = null;
   private ready = false;
@@ -56,7 +54,10 @@ export class StockfishEngine {
 
   async init(skillLevel = 10) {
     if (typeof window === "undefined") return;
-    if (this.sf) return;
+    if (this.sf) {
+      await this.send("isready", (l) => l === "readyok");
+      return;
+    }
 
     this.sf = createStockfish();
 
