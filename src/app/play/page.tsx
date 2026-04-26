@@ -244,9 +244,7 @@ function PlayInner() {
     setMateIn(null);
     finalizingRef.current = false;
 
-    const { data, error } = await supabase
-      .from("games")
-      .insert({
+    const baseInsert = {
         mode: "ai",
         status: "active",
         white_player: playerColor === "white" ? user.id : null,
@@ -258,9 +256,30 @@ function PlayInner() {
         pgn: "",
         white_elo_before: playerColor === "white" ? (profile?.elo ?? 1200) : preset.elo,
         black_elo_before: playerColor === "black" ? (profile?.elo ?? 1200) : preset.elo,
-      })
+      } as const;
+
+    let { data, error } = await supabase
+      .from("games")
+      .insert(baseInsert)
       .select()
       .single();
+
+    // If the remote Supabase project hasn't applied migrations yet, columns may be missing.
+    // Retry with a minimal payload so the app stays usable.
+    if (error && (error as { code?: string; message?: string }).code === "PGRST204") {
+      console.error("games insert schema mismatch; retrying without ai fields", error);
+      ({ data, error } = await supabase
+        .from("games")
+        .insert({
+          ...baseInsert,
+          // @ts-expect-error - intentionally omit when column doesn't exist
+          ai_difficulty: undefined,
+          // @ts-expect-error - intentionally omit when column doesn't exist
+          ai_color: undefined,
+        })
+        .select()
+        .single());
+    }
 
     if (error || !data) {
       toast.error("Could not start game");

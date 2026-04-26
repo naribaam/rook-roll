@@ -20,8 +20,9 @@ const STOCKFISH_CDN_URL =
 
 function stockfishWorkerUrl(): string {
   if (typeof window === "undefined") return STOCKFISH_CDN_URL;
-  // Served from `public/stockfish/stockfish.js`
-  return new URL("/stockfish/stockfish.js", window.location.href).toString();
+  // Served from `public/stockfish/worker.js`
+  // This wrapper forces the .wasm to resolve as `/stockfish/stockfish.wasm`.
+  return new URL("/stockfish/worker.js", window.location.href).toString();
 }
 
 export function createStockfish(): StockfishInstance {
