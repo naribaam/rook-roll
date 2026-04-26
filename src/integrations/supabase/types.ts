@@ -14,16 +14,347 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      games: {
+        Row: {
+          ai_color: string | null
+          ai_difficulty: number | null
+          black_elo_after: number | null
+          black_elo_before: number | null
+          black_player: string | null
+          created_at: string
+          created_by: string | null
+          fen: string
+          finished_at: string | null
+          id: string
+          mode: Database["public"]["Enums"]["game_mode"]
+          moves: Json
+          pgn: string
+          result: Database["public"]["Enums"]["game_result"] | null
+          result_reason: string | null
+          room_code: string | null
+          status: Database["public"]["Enums"]["game_status"]
+          updated_at: string
+          white_elo_after: number | null
+          white_elo_before: number | null
+          white_player: string | null
+        }
+        Insert: {
+          ai_color?: string | null
+          ai_difficulty?: number | null
+          black_elo_after?: number | null
+          black_elo_before?: number | null
+          black_player?: string | null
+          created_at?: string
+          created_by?: string | null
+          fen?: string
+          finished_at?: string | null
+          id?: string
+          mode: Database["public"]["Enums"]["game_mode"]
+          moves?: Json
+          pgn?: string
+          result?: Database["public"]["Enums"]["game_result"] | null
+          result_reason?: string | null
+          room_code?: string | null
+          status?: Database["public"]["Enums"]["game_status"]
+          updated_at?: string
+          white_elo_after?: number | null
+          white_elo_before?: number | null
+          white_player?: string | null
+        }
+        Update: {
+          ai_color?: string | null
+          ai_difficulty?: number | null
+          black_elo_after?: number | null
+          black_elo_before?: number | null
+          black_player?: string | null
+          created_at?: string
+          created_by?: string | null
+          fen?: string
+          finished_at?: string | null
+          id?: string
+          mode?: Database["public"]["Enums"]["game_mode"]
+          moves?: Json
+          pgn?: string
+          result?: Database["public"]["Enums"]["game_result"] | null
+          result_reason?: string | null
+          room_code?: string | null
+          status?: Database["public"]["Enums"]["game_status"]
+          updated_at?: string
+          white_elo_after?: number | null
+          white_elo_before?: number | null
+          white_player?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "games_black_player_fkey"
+            columns: ["black_player"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_black_player_fkey"
+            columns: ["black_player"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_white_player_fkey"
+            columns: ["white_player"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_white_player_fkey"
+            columns: ["white_player"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          active_board_skin: string
+          active_piece_skin: string
+          avatar_url: string | null
+          coins: number
+          created_at: string
+          elo: number
+          email: string | null
+          games_drawn: number
+          games_lost: number
+          games_played: number
+          games_won: number
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active_board_skin?: string
+          active_piece_skin?: string
+          avatar_url?: string | null
+          coins?: number
+          created_at?: string
+          elo?: number
+          email?: string | null
+          games_drawn?: number
+          games_lost?: number
+          games_played?: number
+          games_won?: number
+          id: string
+          name?: string
+          updated_at?: string
+        }
+        Update: {
+          active_board_skin?: string
+          active_piece_skin?: string
+          avatar_url?: string | null
+          coins?: number
+          created_at?: string
+          elo?: number
+          email?: string | null
+          games_drawn?: number
+          games_lost?: number
+          games_played?: number
+          games_won?: number
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      purchases: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          item_type: Database["public"]["Enums"]["item_type"]
+          price: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: Database["public"]["Enums"]["item_type"]
+          price: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: Database["public"]["Enums"]["item_type"]
+          price?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          game_id: string | null
+          id: string
+          type: Database["public"]["Enums"]["tx_type"]
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          game_id?: string | null
+          id?: string
+          type: Database["public"]["Enums"]["tx_type"]
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          game_id?: string | null
+          id?: string
+          type?: Database["public"]["Enums"]["tx_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      leaderboard: {
+        Row: {
+          avatar_url: string | null
+          coins: number | null
+          elo: number | null
+          games_drawn: number | null
+          games_lost: number | null
+          games_played: number | null
+          games_won: number | null
+          id: string | null
+          name: string | null
+          win_rate: number | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          coins?: number | null
+          elo?: number | null
+          games_drawn?: number | null
+          games_lost?: number | null
+          games_played?: number | null
+          games_won?: number | null
+          id?: string | null
+          name?: string | null
+          win_rate?: never
+        }
+        Update: {
+          avatar_url?: string | null
+          coins?: number | null
+          elo?: number | null
+          games_drawn?: number | null
+          games_lost?: number | null
+          games_played?: number | null
+          games_won?: number | null
+          id?: string | null
+          name?: string | null
+          win_rate?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      award_coins: {
+        Args: {
+          _amount: number
+          _description: string
+          _game_id?: string
+          _type: Database["public"]["Enums"]["tx_type"]
+          _user_id: string
+        }
+        Returns: number
+      }
+      equip_skin: {
+        Args: {
+          _item_id: string
+          _item_type: Database["public"]["Enums"]["item_type"]
+        }
+        Returns: undefined
+      }
+      purchase_item: {
+        Args: {
+          _item_id: string
+          _item_type: Database["public"]["Enums"]["item_type"]
+          _price: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
-      [_ in never]: never
+      game_mode: "ai" | "multiplayer"
+      game_result: "white_win" | "black_win" | "draw" | "aborted"
+      game_status: "waiting" | "active" | "finished"
+      item_type: "piece_skin" | "board_skin"
+      tx_type:
+        | "starting_bonus"
+        | "win"
+        | "loss"
+        | "draw"
+        | "move_bonus"
+        | "purchase"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +481,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      game_mode: ["ai", "multiplayer"],
+      game_result: ["white_win", "black_win", "draw", "aborted"],
+      game_status: ["waiting", "active", "finished"],
+      item_type: ["piece_skin", "board_skin"],
+      tx_type: [
+        "starting_bonus",
+        "win",
+        "loss",
+        "draw",
+        "move_bonus",
+        "purchase",
+      ],
+    },
   },
 } as const
