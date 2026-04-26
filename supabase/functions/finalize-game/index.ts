@@ -135,14 +135,11 @@ Deno.serve(async (req: Request) => {
     const whiteDelta = whiteEloAfter - whiteElo;
     const blackDelta = blackEloAfter - blackElo;
 
-    // Update profiles ELO + counters
+    // Update profiles ELO (counters bumped below in bumpCounters)
     if (game.white_player) {
       await admin
         .from("profiles")
-        .update({
-          elo: whiteEloAfter,
-          games_played: (game.white_player ? 1 : 0) + 0, // computed below atomically via rpc-like
-        })
+        .update({ elo: whiteEloAfter })
         .eq("id", game.white_player);
     }
     if (game.black_player) {
