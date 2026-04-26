@@ -1,26 +1,69 @@
-/* Stockfish WASM wrapper (single-threaded, lite).
- * Uses a Web Worker spawned from /stockfish/stockfish.js (in /public).
+/* Stockfish engine via CDN-loaded Web Worker.
+ * Uses stockfish.js from jsDelivr CDN — no local WASM files needed.
+ * Safe for Vercel deployment (no .wasm bundling issues).
  */
 
 export type AnalysisResult = {
   bestMove: string | null;
-  scoreCp: number | null; // centipawns from current side to move's perspective
+  scoreCp: number | null;
   mateIn: number | null;
 };
 
+export type StockfishInstance = {
+  send: (command: string) => void;
+  onMessage: (callback: (line: string) => void) => () => void;
+  destroy: () => void;
+};
+
+const STOCKFISH_CDN_URL = "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
+
+export function createStockfish(): StockfishInstance {
+  const worker = new Worker(STOCKFISH_CDN_URL);
+  const listeners: ((line: string) => void)[] = [];
+
+  worker.onmessage = (e: MessageEvent) => {
+    const line = typeof e.data === "string" ? e.data : "";
+    if (line) {
+      for (const l of listeners) l(line);
+    }
+  };
+
+  return {
+    send(command: string) {
+      worker.postMessage(command);
+    },
+    onMessage(callback: (line: string) => void) {
+      listeners.push(callback);
+      return () => {
+        const idx = listeners.indexOf(callback);
+        if (idx !== -1) listeners.splice(idx, 1);
+      };
+    },
+    destroy() {
+      worker.terminate();
+      listeners.length = 0;
+    },
+  };
+}
+
+/* High-level engine wrapper with init/analyze API.
+ * Singleton pattern — use getEngine() everywhere. */
+
 export class StockfishEngine {
-  private worker: Worker | null = null;
+  private sf: StockfishInstance | null = null;
   private ready = false;
   private listeners: ((line: string) => void)[] = [];
 
   async init(skillLevel = 10) {
     if (typeof window === "undefined") return;
-    if (this.worker) return;
-    this.worker = new Worker("/stockfish/stockfish.js");
-    this.worker.onmessage = (e: MessageEvent) => {
-      const line = typeof e.data === "string" ? e.data : "";
+    if (this.sf) return;
+
+    this.sf = createStockfish();
+
+    this.sf.onMessage((line) => {
       for (const l of this.listeners) l(line);
-    };
+    });
+
     await this.send("uci", (l) => l === "uciok");
     await this.send(
       `setoption name Skill Level value ${Math.max(0, Math.min(20, skillLevel))}`,
@@ -40,7 +83,7 @@ export class StockfishEngine {
   }
 
   private post(cmd: string) {
-    this.worker?.postMessage(cmd);
+    this.sf?.send(cmd);
   }
 
   private send(cmd: string, until?: (line: string) => boolean) {
@@ -61,7 +104,6 @@ export class StockfishEngine {
     });
   }
 
-  /** Get best move + evaluation from given fen */
   analyze(fen: string, depth = 12): Promise<AnalysisResult> {
     return new Promise((resolve) => {
       let lastScore: number | null = null;
@@ -96,8 +138,8 @@ export class StockfishEngine {
   }
 
   destroy() {
-    this.worker?.terminate();
-    this.worker = null;
+    this.sf?.destroy();
+    this.sf = null;
     this.ready = false;
     this.listeners = [];
   }
