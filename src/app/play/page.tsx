@@ -1,0 +1,417 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Chess } from "chess.js";
+import { Layout } from "@/components/Layout";
+import { AuthGate } from "@/components/AuthGate";
+import { ChessBoardView } from "@/components/ChessBoardView";
+import { MoveHistory } from "@/components/MoveHistory";
+import { GameResultCard } from "@/components/GameResultCard";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
+import { useRouter } from "next/navigation";
+import { Bot, Flag, RotateCw } from "lucide-react";
+import { toast } from "sonner";
+
+const DIFFICULTY_PRESETS = [
+  { skill: 0, depth: 4, label: "Beginner", elo: 600 },
+  { skill: 5, depth: 6, label: "Easy", elo: 1000 },
+  { skill: 10, depth: 10, label: "Intermediate", elo: 1400 },
+  { skill: 15, depth: 14, label: "Advanced", elo: 1800 },
+  { skill: 20, depth: 18, label: "Master", elo: 2400 },
+];
+
+type MoveItem = {
+  san: string;
+  fen: string;
+  quality?: "best" | "great" | "good" | "inaccuracy" | "mistake" | "blunder";
+};
+
+export default function PlayPage() {
+  return (
+    <Layout>
+      <AuthGate>
+        <PlayInner />
+      </AuthGate>
+    </Layout>
+  );
+}
+
+function PlayInner() {
+  const { user, profile } = useAuth();
+  const navigate = useRouter();
+
+  const gameRef = useRef(new Chess());
+  const [fen, setFen] = useState(gameRef.current.fen());
+  const [moves, setMoves] = useState<MoveItem[]>([]);
+  const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [aiThinking, setAiThinking] = useState(false);
+  const [difficulty, setDifficulty] = useState(2);
+  const [gameId, setGameId] = useState<string | null>(null);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [result, setResult] = useState<null | {
+    outcome: "win" | "loss" | "draw";
+    reason: string;
+    elo_delta: number;
+    new_elo: number;
+    coins_earned: number;
+    new_coins: number;
+    move_bonus: number;
+  }>(null);
+  const finalizingRef = useRef(false);
+  const moveQualityRef = useRef({ best: 0, great: 0, good: 0, blunder: 0 });
+  const moveCountRef = useRef(0);
+
+  const preset = DIFFICULTY_PRESETS[difficulty];
+  const aiColor = playerColor === "white" ? "b" : "w";
+
+  const persistMove = useCallback(async (
+    id: string,
+    move: { from: string; to: string; promotion?: string; san: string },
+    fenAfter: string,
+    playedBy: "white" | "black",
+  ) => {
+    moveCountRef.current += 1;
+    const moveNumber = moveCountRef.current;
+
+    await supabase.from("moves").insert({
+      game_id: id,
+      move_number: moveNumber,
+      san: move.san,
+      from_sq: move.from,
+      to_sq: move.to,
+      promotion: move.promotion ?? null,
+      fen: fenAfter,
+      played_by: playedBy,
+    });
+
+    await supabase
+      .from("games")
+      .update({
+        fen: fenAfter,
+        pgn: gameRef.current.pgn(),
+      })
+      .eq("id", id);
+  }, []);
+
+  const checkGameOver = useCallback((): { result: "white_win" | "black_win" | "draw"; reason: string } | null => {
+    const game = gameRef.current;
+    if (!game.isGameOver()) return null;
+    if (game.isCheckmate()) {
+      const loser = game.turn();
+      return { result: loser === "w" ? "black_win" : "white_win", reason: "Checkmate" };
+    }
+    if (game.isStalemate()) return { result: "draw", reason: "Stalemate" };
+    if (game.isThreefoldRepetition()) return { result: "draw", reason: "Threefold repetition" };
+    if (game.isInsufficientMaterial()) return { result: "draw", reason: "Insufficient material" };
+    if (game.isDraw()) return { result: "draw", reason: "50-move rule" };
+    return null;
+  }, []);
+
+  const finalize = useCallback(
+    async (id: string, res: { result: "white_win" | "black_win" | "draw"; reason: string }) => {
+      if (finalizingRef.current) return;
+      finalizingRef.current = true;
+      try {
+        const { data, error } = await supabase.functions.invoke("finalize-game", {
+          body: {
+            game_id: id,
+            result: res.result,
+            reason: res.reason,
+            move_quality: moveQualityRef.current,
+          },
+        });
+        if (error) throw error;
+        const userIsWhite = playerColor === "white";
+        const outcome =
+          res.result === "draw"
+            ? "draw"
+            : (userIsWhite && res.result === "white_win") || (!userIsWhite && res.result === "black_win")
+              ? "win"
+              : "loss";
+        setResult({
+          outcome,
+          reason: data?.reason ?? res.reason,
+          elo_delta: data?.elo_delta ?? 0,
+          new_elo: data?.new_elo ?? profile?.elo ?? 1200,
+          coins_earned: data?.coins_earned ?? 0,
+          new_coins: data?.new_coins ?? profile?.coins ?? 0,
+          move_bonus: data?.move_bonus ?? 0,
+        });
+      } catch (e) {
+        console.error("finalize failed", e);
+        toast.error("Could not finalize game");
+        finalizingRef.current = false;
+      }
+    },
+    [playerColor, profile],
+  );
+
+  const classifyMove = useCallback(
+    async (fenBefore: string, fenAfter: string): Promise<MoveItem["quality"]> => {
+      // Without engine, classify as good
+      return "good";
+    },
+    [playerColor],
+  );
+
+  const playAi = useCallback(
+    async (id: string, currentMoves: MoveItem[]) => {
+      // AI disabled without engine
+      return;
+    },
+    [preset.depth, persistMove, checkGameOver, finalize, playerColor],
+  );
+
+  const startGame = useCallback(async () => {
+    if (!user) return;
+    const game = gameRef.current;
+    game.reset();
+    setFen(game.fen());
+    setMoves([]);
+    setResult(null);
+    moveQualityRef.current = { best: 0, great: 0, good: 0, blunder: 0 };
+    moveCountRef.current = 0;
+    finalizingRef.current = false;
+
+    const { data, error } = await supabase
+      .from("games")
+      .insert({
+        mode: "ai",
+        status: "active",
+        white_player: playerColor === "white" ? user.id : null,
+        black_player: playerColor === "black" ? user.id : null,
+        ai_difficulty: preset.skill,
+        ai_color: playerColor === "white" ? "black" : "white",
+        created_by: user.id,
+        fen: game.fen(),
+        pgn: "",
+        white_elo_before: playerColor === "white" ? (profile?.elo ?? 1200) : preset.elo,
+        black_elo_before: playerColor === "black" ? (profile?.elo ?? 1200) : preset.elo,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      toast.error("Could not start game");
+      console.error(error);
+      return;
+    }
+    setGameId(data.id);
+    setGameStarted(true);
+
+    if (playerColor === "black") {
+      setTimeout(() => playAi(data.id, []), 400);
+    }
+  }, [user, playerColor, preset, profile, playAi]);
+
+  const onDrop = useCallback(
+    (from: string, to: string): boolean => {
+      const game = gameRef.current;
+      if (aiThinking || result) return false;
+      if (game.turn() === aiColor) return false;
+      const fenBefore = game.fen();
+      let move;
+      try {
+        move = game.move({ from, to, promotion: "q" });
+      } catch {
+        return false;
+      }
+      if (!move) return false;
+      const fenAfter = game.fen();
+      setFen(fenAfter);
+      const placeholder: MoveItem = { san: move.san, fen: fenAfter };
+
+      setMoves((prev) => {
+        const next = [...prev, placeholder];
+        const currentId = gameId;
+
+        if (currentId) {
+          persistMove(currentId, { from, to, promotion: "q", san: move.san }, fenAfter, playerColor)
+            .catch((e) => console.error("persist move error", e));
+        }
+
+        (async () => {
+          const quality = await classifyMove(fenBefore, fenAfter);
+          setMoves((m) => {
+            const copy = [...m];
+            const idx = copy.findIndex((x) => x.fen === fenAfter && !x.quality);
+            if (idx !== -1) copy[idx] = { ...copy[idx], quality };
+            return copy;
+          });
+          const over = checkGameOver();
+          if (over) {
+            if (currentId) await finalize(currentId, over);
+            return;
+          }
+          if (currentId) {
+            const withQuality = [...prev, { ...placeholder, quality }];
+            await playAi(currentId, withQuality);
+          }
+        })();
+
+        return next;
+      });
+
+      return true;
+    },
+    [aiThinking, result, aiColor, gameId, persistMove, classifyMove, checkGameOver, finalize, playAi, playerColor],
+  );
+
+  const onResign = async () => {
+    if (!gameStarted || result || !gameId) return;
+    await finalize(gameId, {
+      result: playerColor === "white" ? "black_win" : "white_win",
+      reason: "Resignation",
+    });
+  };
+
+  const onRematch = async () => {
+    setGameStarted(false);
+    setGameId(null);
+    finalizingRef.current = false;
+    await startGame();
+  };
+
+  const lastMoveHighlight = useMemo(() => {
+    const history = gameRef.current.history({ verbose: true });
+    const last = history[history.length - 1];
+    if (!last) return {};
+    return {
+      [last.from]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
+      [last.to]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
+    };
+  }, [fen]);
+
+  if (!gameStarted) {
+    return (
+      <Layout>
+        <AuthGate>
+          <div className="mx-auto max-w-2xl rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-elegant)]">
+            <div className="mb-6 text-center">
+              <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
+                <Bot className="h-3.5 w-3.5" /> AI Training
+              </span>
+              <h1 className="text-3xl font-bold">Play vs Stockfish</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Pick your color and difficulty. Win to earn coins and ELO.
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Play as
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["white", "black"] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setPlayerColor(c)}
+                    className={`flex items-center justify-center gap-2 rounded-xl border p-3 font-semibold transition-all ${
+                      playerColor === c
+                        ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
+                        : "border-border bg-secondary/30 hover:border-primary/40"
+                    }`}
+                  >
+                    <span className="text-2xl">{c === "white" ? "♔" : "♚"}</span>
+                    <span className="capitalize">{c}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Difficulty
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {DIFFICULTY_PRESETS.map((p, i) => (
+                  <button
+                    key={p.label}
+                    onClick={() => setDifficulty(i)}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                      difficulty === i
+                        ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
+                        : "border-border bg-secondary/30 hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-muted-foreground">Lvl {p.skill}</div>
+                    <div className="font-bold">{p.label}</div>
+                    <div className="font-mono text-xs text-muted-foreground">~{p.elo}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button variant="hero" size="xl" className="w-full" onClick={startGame}>
+              Start game
+            </Button>
+          </div>
+        </AuthGate>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <AuthGate>
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Play vs AI
+                </p>
+                <p className="text-sm">
+                  {aiThinking ? "Thinking…" : result ? "Game over" : "Your move"}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={onResign} disabled={!!result}>
+                  <Flag className="h-4 w-4" /> Resign
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onRematch}>
+                  <RotateCw className="h-4 w-4" /> New
+                </Button>
+              </div>
+            </div>
+
+            <ChessBoardView
+              position={fen}
+              orientation={playerColor}
+              onPieceDrop={onDrop}
+              squareStyles={lastMoveHighlight}
+              boardSkin={profile?.active_board_skin ?? "classic"}
+              allowDragging={!aiThinking && !result}
+            />
+
+            {result && (
+              <GameResultCard
+                outcome={result.outcome}
+                reason={result.reason}
+                eloDelta={result.elo_delta}
+                newElo={result.new_elo}
+                coinsEarned={result.coins_earned}
+                newCoins={result.new_coins}
+                moveBonus={result.move_bonus}
+                onRematch={onRematch}
+                analyzeHref={gameId ? `/game/${gameId}` : undefined}
+              />
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <MoveHistory moves={moves} />
+            <button
+              onClick={() => navigate.push("/")}
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              Back to home
+            </button>
+          </div>
+        </div>
+      </AuthGate>
+    </Layout>
+  );
+}
