@@ -73,9 +73,10 @@ function PlayInner() {
   }>(null);
   const finalizingRef = useRef(false);
   const moveQualityRef = useRef({ best: 0, great: 0, good: 0, blunder: 0 });
+  // Track move count for DB move_number
+  const moveCountRef = useRef(0);
 
   const preset = DIFFICULTY_PRESETS[difficulty];
-  // aiColor is the chess.js turn letter ('w' or 'b') for the AI
   const aiColor = playerColor === "white" ? "b" : "w";
 
   useEffect(() => {
@@ -87,13 +88,32 @@ function PlayInner() {
     getEngine().setSkill(preset.skill);
   }, [preset.skill]);
 
-  const persistGame = useCallback(async (id: string, currentFen: string, allMoves: MoveItem[]) => {
+  // Persist a move to the moves table and update the game row
+  const persistMove = useCallback(async (
+    id: string,
+    move: { from: string; to: string; promotion?: string; san: string },
+    fenAfter: string,
+    playedBy: "white" | "black",
+  ) => {
+    moveCountRef.current += 1;
+    const moveNumber = moveCountRef.current;
+
+    await supabase.from("moves").insert({
+      game_id: id,
+      move_number: moveNumber,
+      san: move.san,
+      from_sq: move.from,
+      to_sq: move.to,
+      promotion: move.promotion ?? null,
+      fen: fenAfter,
+      played_by: playedBy,
+    });
+
     await supabase
       .from("games")
       .update({
-        fen: currentFen,
+        fen: fenAfter,
         pgn: gameRef.current.pgn(),
-        moves: allMoves as unknown as never,
       })
       .eq("id", id);
   }, []);
@@ -163,7 +183,6 @@ function PlayInner() {
         const scoreAfter = (after.scoreCp ?? 0) * afterSign;
         setEvalScore(scoreAfter);
         setMateIn(after.mateIn);
-        // Loss from the player's perspective
         const playerSign = playerColor === "white" ? 1 : -1;
         const playerLoss = (scoreBefore - scoreAfter) * playerSign;
         if (playerLoss <= 10) { moveQualityRef.current.best++; return "best"; }
@@ -202,14 +221,18 @@ function PlayInner() {
         const item: MoveItem = { san: move.san, fen: newFen };
         const next = [...currentMoves, item];
         setMoves(next);
-        await persistGame(id, newFen, next);
+
+        // Persist AI move to DB
+        const aiSide = playerColor === "white" ? "black" : "white";
+        await persistMove(id, { from, to, promotion, san: move.san }, newFen, aiSide);
+
         const over = checkGameOver();
         if (over) await finalize(id, over);
       } finally {
         setAiThinking(false);
       }
     },
-    [preset.depth, persistGame, checkGameOver, finalize],
+    [preset.depth, persistMove, checkGameOver, finalize, playerColor],
   );
 
   const startGame = useCallback(async () => {
@@ -220,6 +243,7 @@ function PlayInner() {
     setMoves([]);
     setResult(null);
     moveQualityRef.current = { best: 0, great: 0, good: 0, blunder: 0 };
+    moveCountRef.current = 0;
     setEvalScore(0);
     setMateIn(null);
     finalizingRef.current = false;
@@ -236,7 +260,6 @@ function PlayInner() {
         created_by: user.id,
         fen: game.fen(),
         pgn: "",
-        moves: [],
         white_elo_before: playerColor === "white" ? (profile?.elo ?? 1200) : preset.elo,
         black_elo_before: playerColor === "black" ? (profile?.elo ?? 1200) : preset.elo,
       })
@@ -251,7 +274,6 @@ function PlayInner() {
     setGameId(data.id);
     setGameStarted(true);
 
-    // If player chose black, AI (white) goes first
     if (playerColor === "black") {
       setTimeout(() => playAi(data.id, []), 400);
     }
@@ -277,7 +299,12 @@ function PlayInner() {
       setMoves((prev) => {
         const next = [...prev, placeholder];
         const currentId = gameId;
-        if (currentId) persistGame(currentId, fenAfter, next);
+
+        // Persist player move to DB
+        if (currentId) {
+          persistMove(currentId, { from, to, promotion: "q", san: move.san }, fenAfter, playerColor)
+            .catch((e) => console.error("persist move error", e));
+        }
 
         (async () => {
           const quality = await classifyMove(fenBefore, fenAfter);
@@ -303,7 +330,7 @@ function PlayInner() {
 
       return true;
     },
-    [aiThinking, result, aiColor, gameId, persistGame, classifyMove, checkGameOver, finalize, playAi],
+    [aiThinking, result, aiColor, gameId, persistMove, classifyMove, checkGameOver, finalize, playAi, playerColor],
   );
 
   const onResign = async () => {

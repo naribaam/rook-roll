@@ -33,6 +33,19 @@ function RoomPage() {
   );
 }
 
+type MoveRow = {
+  id: string;
+  game_id: string;
+  move_number: number;
+  san: string;
+  from_sq: string;
+  to_sq: string;
+  promotion: string | null;
+  fen: string;
+  played_by: "white" | "black";
+  played_at: string;
+};
+
 type GameRow = {
   id: string;
   status: "waiting" | "active" | "finished";
@@ -40,7 +53,6 @@ type GameRow = {
   black_player: string | null;
   fen: string;
   pgn: string;
-  moves: { san: string; fen: string }[];
   result: "white_win" | "black_win" | "draw" | "aborted" | null;
   result_reason: string | null;
   time_control: string | null;
@@ -54,11 +66,9 @@ type GameRow = {
 
 type Profile = { id: string; name: string; avatar_url: string | null; elo: number };
 
-// Compute effective remaining time accounting for time elapsed since last move
 function effectiveTimeMs(row: GameRow, side: "white" | "black", turnColor: string): number | null {
   const ms = side === "white" ? row.white_time_ms : row.black_time_ms;
   if (ms === null || ms === undefined) return null;
-  // If it's this side's turn and game is active, subtract elapsed time since last move
   const isTurn = (side === "white" && turnColor === "w") || (side === "black" && turnColor === "b");
   if (isTurn && row.status === "active" && row.last_move_at) {
     const elapsed = Date.now() - new Date(row.last_move_at).getTime();
@@ -72,6 +82,7 @@ function RoomInner() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [row, setRow] = useState<GameRow | null>(null);
+  const [dbMoves, setDbMoves] = useState<MoveRow[]>([]);
   const [opponents, setOpponents] = useState<Record<string, Profile>>({});
   const chessRef = useRef(new Chess());
   const [turnColor, setTurnColor] = useState<string>("w");
@@ -86,20 +97,43 @@ function RoomInner() {
   }>(null);
   const finalizingRef = useRef(false);
   const hasJoinedRef = useRef(false);
+  // Track the latest move_number we've already applied to avoid re-applying
+  const appliedMoveCountRef = useRef(0);
 
-  const syncChess = useCallback((g: GameRow) => {
+  // Rebuild chess state from DB moves (source of truth)
+  const rebuildFromMoves = useCallback((moves: MoveRow[], gameRow: GameRow) => {
     const chess = chessRef.current;
-    try {
-      if (g.pgn) {
-        chess.loadPgn(g.pgn);
-      } else {
-        chess.reset();
+    chess.reset();
+    const sorted = [...moves].sort((a, b) => a.move_number - b.move_number);
+    for (const m of sorted) {
+      try {
+        chess.move({ from: m.from_sq, to: m.to_sq, promotion: m.promotion ?? undefined });
+      } catch {
+        // If a move fails, fall back to FEN from the game row
+        try { chess.load(gameRow.fen); } catch { /* ignore */ }
+        break;
       }
-    } catch {
-      chess.reset();
+    }
+    // As a safety check, if the chess FEN doesn't match the game row FEN,
+    // trust the game row FEN (it's the authoritative current state)
+    if (chess.fen() !== gameRow.fen && gameRow.fen) {
+      try { chess.load(gameRow.fen); } catch { /* ignore */ }
     }
     setTurnColor(chess.turn());
+    appliedMoveCountRef.current = sorted.length;
   }, []);
+
+  // Apply a single new move to the local chess instance
+  const applyMove = useCallback((move: MoveRow) => {
+    const chess = chessRef.current;
+    try {
+      chess.move({ from: move.from_sq, to: move.to_sq, promotion: move.promotion ?? undefined });
+    } catch {
+      // Move already applied or invalid — reload from FEN
+      try { chess.load(row?.fen ?? chess.fen()); } catch { /* ignore */ }
+    }
+    setTurnColor(chess.turn());
+  }, [row]);
 
   // Initial load + auto-join + realtime
   useEffect(() => {
@@ -107,6 +141,7 @@ function RoomInner() {
     let cancelled = false;
 
     const load = async () => {
+      // Load game row
       const { data, error } = await supabase
         .from("games")
         .select("*")
@@ -122,7 +157,18 @@ function RoomInner() {
       }
       const g = data as unknown as GameRow;
       setRow(g);
-      syncChess(g);
+
+      // Load all moves from DB
+      const { data: moveData } = await supabase
+        .from("moves")
+        .select("*")
+        .eq("game_id", g.id)
+        .order("move_number", { ascending: true });
+
+      if (cancelled) return;
+      const moves = (moveData ?? []) as unknown as MoveRow[];
+      setDbMoves(moves);
+      rebuildFromMoves(moves, g);
 
       // Auto-join as black if waiting and not creator
       if (
@@ -171,8 +217,9 @@ function RoomInner() {
 
     load();
 
-    const channel = supabase
-      .channel(`room:${code}`)
+    // Subscribe to game updates (clocks, status, draw offers, FEN)
+    const gameChannel = supabase
+      .channel(`room-game:${code}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "games", filter: `room_code=eq.${code}` },
@@ -180,16 +227,63 @@ function RoomInner() {
           if (cancelled) return;
           const g = payload.new as unknown as GameRow;
           setRow(g);
-          syncChess(g);
+          // Sync chess position from the authoritative FEN
+          const chess = chessRef.current;
+          try { chess.load(g.fen); } catch { /* ignore */ }
+          setTurnColor(chess.turn());
         },
       )
       .subscribe();
 
+    // Subscribe to new moves (realtime)
+    // We need the game_id for the moves filter, so we set it up after load
+    let movesChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setupMovesChannel = async () => {
+      // Wait for game to be loaded
+      const { data: gameData } = await supabase
+        .from("games")
+        .select("id")
+        .eq("room_code", code)
+        .eq("mode", "multiplayer")
+        .maybeSingle();
+
+      if (cancelled || !gameData) return;
+
+      movesChannel = supabase
+        .channel(`room-moves:${code}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "moves",
+            filter: `game_id=eq.${gameData.id}`,
+          },
+          (payload) => {
+            if (cancelled) return;
+            const newMove = payload.new as unknown as MoveRow;
+            setDbMoves((prev) => {
+              // Avoid duplicates
+              if (prev.some((m) => m.id === newMove.id)) return prev;
+              const next = [...prev, newMove];
+              // Apply the new move to local chess
+              applyMove(newMove);
+              return next;
+            });
+          },
+        )
+        .subscribe();
+    };
+
+    setupMovesChannel();
+
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(gameChannel);
+      if (movesChannel) supabase.removeChannel(movesChannel);
     };
-  }, [code, user, navigate, syncChess]);
+  }, [code, user, navigate, rebuildFromMoves, applyMove, profile]);
 
   // Load opponent profiles whenever players change
   useEffect(() => {
@@ -278,7 +372,6 @@ function RoomInner() {
       if (!move) return false;
 
       const fenAfter = chess.fen();
-      const newMoves = [...(row.moves || []), { san: move.san, fen: fenAfter }];
       setTurnColor(chess.turn());
 
       // Compute new clock times
@@ -296,33 +389,58 @@ function RoomInner() {
         }
       }
 
+      const moveNumber = dbMoves.length + 1;
+      const playedBy = isWhite ? "white" : "black";
+
+      // Insert move into moves table (source of truth)
+      const moveRow: Omit<MoveRow, "id" | "played_at"> = {
+        game_id: row.id,
+        move_number: moveNumber,
+        san: move.san,
+        from_sq: from,
+        to_sq: to,
+        promotion: move.promotion ?? null,
+        fen: fenAfter,
+        played_by: playedBy,
+      };
+
       supabase
-        .from("games")
-        .update({
-          fen: fenAfter,
-          pgn: chess.pgn(),
-          moves: newMoves as unknown as never,
-          last_move_at: now,
-          white_time_ms: newWhiteMs,
-          black_time_ms: newBlackMs,
-          draw_offered_by: null, // reset draw offer on move
-        })
-        .eq("id", row.id)
-        .then(({ error }) => {
-          if (error) {
-            console.error("move persist error", error);
-            // rollback local chess state
+        .from("moves")
+        .insert(moveRow)
+        .then(({ error: moveErr }) => {
+          if (moveErr) {
+            console.error("move insert error", moveErr);
+            // Rollback local chess state
             chess.undo();
             setTurnColor(chess.turn());
             toast.error("Move rejected — please try again");
+            return;
           }
+          // Move persisted — now update the game row (FEN, clocks, etc.)
+          supabase
+            .from("games")
+            .update({
+              fen: fenAfter,
+              pgn: chess.pgn(),
+              last_move_at: now,
+              white_time_ms: newWhiteMs,
+              black_time_ms: newBlackMs,
+              draw_offered_by: null,
+            })
+            .eq("id", row.id)
+            .then(({ error: gameErr }) => {
+              if (gameErr) {
+                console.error("game update error after move", gameErr);
+                toast.error("Move saved but game state may be out of sync");
+              }
+            });
         });
 
       const over = checkOver();
       if (over) finalize(over);
       return true;
     },
-    [row, myTurn, result, isWhite, checkOver, finalize],
+    [row, myTurn, result, isWhite, dbMoves.length, checkOver, finalize],
   );
 
   const onResign = useCallback(async () => {
@@ -364,9 +482,8 @@ function RoomInner() {
   const onTimeout = useCallback(
     (side: "white" | "black") => {
       if (!isParticipant || result || !row) return;
-      const loser = side;
       finalize({
-        result: loser === "white" ? "black_win" : "white_win",
+        result: side === "white" ? "black_win" : "white_win",
         reason: "Timeout",
       });
     },
@@ -380,25 +497,22 @@ function RoomInner() {
   };
 
   const moveItems = useMemo(
-    () => (row?.moves ?? []).map((m) => ({ san: m.san })),
-    [row?.moves],
+    () => dbMoves.map((m) => ({ san: m.san })),
+    [dbMoves],
   );
 
   const lastMoveHighlight = useMemo(() => {
-    const chess = chessRef.current;
-    const history = chess.history({ verbose: true });
-    const last = history[history.length - 1];
-    if (!last) return {};
+    if (dbMoves.length === 0) return {};
+    const last = dbMoves[dbMoves.length - 1];
     return {
-      [last.from]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
-      [last.to]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
+      [last.from_sq]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
+      [last.to_sq]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
     };
-  }, [turnColor, row?.moves?.length]);
+  }, [dbMoves]);
 
   const hasClocks = row?.white_time_ms !== null && row?.white_time_ms !== undefined;
   const opponentSide: "white" | "black" = orientation === "white" ? "black" : "white";
 
-  // Draw offer banner: shown to the player who RECEIVED the offer
   const mySide = isWhite ? "white" : "black";
   const oppSide = isWhite ? "black" : "white";
   const drawOfferedByOpponent = row?.draw_offered_by === oppSide;
@@ -436,8 +550,7 @@ function RoomInner() {
               initialMs={topMs}
               active={row.status === "active" && !result && turnColor === (opponentSide === "white" ? "w" : "b")}
               onTimeout={() => {
-                // Only the active player triggers timeout (prevents double-call)
-                if (myTurn) return; // it's NOT my turn so opponent timed out
+                if (myTurn) return;
                 onTimeout(opponentSide);
               }}
             />
@@ -452,7 +565,7 @@ function RoomInner() {
               Opponent offers a draw
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="success" onClick={onAcceptDraw}>Accept</Button>
+              <Button size="sm" variant="outline" className="border-emerald-500 text-emerald-600 hover:bg-emerald-500/10" onClick={onAcceptDraw}>Accept</Button>
               <Button size="sm" variant="outline" onClick={onDeclineDraw}>
                 <X className="h-3.5 w-3.5" /> Decline
               </Button>
@@ -487,7 +600,7 @@ function RoomInner() {
               initialMs={bottomMs}
               active={row.status === "active" && !result && turnColor === (orientation === "white" ? "w" : "b")}
               onTimeout={() => {
-                if (!myTurn) return; // it IS my turn so I timed out
+                if (!myTurn) return;
                 onTimeout(orientation);
               }}
             />
