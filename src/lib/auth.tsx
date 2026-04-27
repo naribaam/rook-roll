@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 
 export type Profile = {
   id: string;
@@ -133,13 +134,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
+    // Use Lovable Cloud's managed OAuth broker so the callback always
+    // resolves against the live deployed origin (no localhost redirects),
+    // even on Vercel preview / production URLs.
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
     });
-    if (error) console.error("Google sign-in error", error);
+    if (result.error) {
+      console.error("Google sign-in error", result.error);
+    }
   };
 
   const signOut = async () => {

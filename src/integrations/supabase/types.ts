@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       games: {
@@ -25,6 +30,7 @@ export type Database = {
           finished_at: string | null
           id: string
           increment_seconds: number | null
+          last_move_at: string | null
           mode: Database["public"]["Enums"]["game_mode"]
           moves: Json
           pgn: string
@@ -39,7 +45,6 @@ export type Database = {
           white_elo_before: number | null
           white_player: string | null
           white_time_ms: number | null
-          last_move_at: string | null
         }
         Insert: {
           ai_color?: string | null
@@ -56,6 +61,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           increment_seconds?: number | null
+          last_move_at?: string | null
           mode: Database["public"]["Enums"]["game_mode"]
           moves?: Json
           pgn?: string
@@ -70,7 +76,6 @@ export type Database = {
           white_elo_before?: number | null
           white_player?: string | null
           white_time_ms?: number | null
-          last_move_at?: string | null
         }
         Update: {
           ai_color?: string | null
@@ -87,6 +92,7 @@ export type Database = {
           finished_at?: string | null
           id?: string
           increment_seconds?: number | null
+          last_move_at?: string | null
           mode?: Database["public"]["Enums"]["game_mode"]
           moves?: Json
           pgn?: string
@@ -101,46 +107,88 @@ export type Database = {
           white_elo_before?: number | null
           white_player?: string | null
           white_time_ms?: number | null
-          last_move_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "games_black_player_fkey"
+            columns: ["black_player"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_black_player_fkey"
+            columns: ["black_player"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_white_player_fkey"
+            columns: ["white_player"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_white_player_fkey"
+            columns: ["white_player"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       moves: {
         Row: {
-          id: string
-          game_id: string
-          move_number: number
-          san: string
-          from_sq: string
-          to_sq: string
-          promotion: string | null
           fen: string
-          played_by: string
+          from_sq: string
+          game_id: string
+          id: string
+          move_number: number
           played_at: string
+          played_by: string
+          promotion: string | null
+          san: string
+          to_sq: string
         }
         Insert: {
-          id?: string
-          game_id: string
-          move_number: number
-          san: string
-          from_sq: string
-          to_sq: string
-          promotion?: string | null
           fen: string
-          played_by: string
+          from_sq: string
+          game_id: string
+          id?: string
+          move_number: number
           played_at?: string
+          played_by: string
+          promotion?: string | null
+          san: string
+          to_sq: string
         }
         Update: {
-          id?: string
-          game_id?: string
-          move_number?: number
-          san?: string
-          from_sq?: string
-          to_sq?: string
-          promotion?: string | null
           fen?: string
-          played_by?: string
+          from_sq?: string
+          game_id?: string
+          id?: string
+          move_number?: number
           played_at?: string
+          played_by?: string
+          promotion?: string | null
+          san?: string
+          to_sq?: string
         }
         Relationships: [
           {
@@ -149,7 +197,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "games"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       profiles: {
@@ -228,7 +276,22 @@ export type Database = {
           price?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -258,7 +321,29 @@ export type Database = {
           type?: Database["public"]["Enums"]["tx_type"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "transactions_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -285,6 +370,7 @@ export type Database = {
           games_won?: number | null
           id?: string | null
           name?: string | null
+          win_rate?: never
         }
         Update: {
           avatar_url?: string | null
@@ -296,6 +382,7 @@ export type Database = {
           games_won?: number | null
           id?: string | null
           name?: string | null
+          win_rate?: never
         }
         Relationships: []
       }
@@ -341,9 +428,147 @@ export type Database = {
         | "purchase"
         | "timeout"
         | "abandoned"
-      CompositeTypes: {
-        [_ in never]: never
-      }
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      game_mode: ["ai", "multiplayer"],
+      game_result: ["white_win", "black_win", "draw", "aborted"],
+      game_status: ["waiting", "active", "finished"],
+      item_type: ["piece_skin", "board_skin"],
+      tx_type: [
+        "starting_bonus",
+        "win",
+        "loss",
+        "draw",
+        "move_bonus",
+        "purchase",
+        "timeout",
+        "abandoned",
+      ],
+    },
+  },
+} as const

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
-import "@/styles.css";
+import "../styles.css";
 
 export const metadata: Metadata = {
   title: "Gambit — Play chess online, free",
