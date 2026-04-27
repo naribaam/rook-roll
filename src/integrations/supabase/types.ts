@@ -21,11 +21,16 @@ export type Database = {
           black_elo_after: number | null
           black_elo_before: number | null
           black_player: string | null
+          black_time_ms: number | null
           created_at: string
           created_by: string | null
+          draw_offer_at: string | null
+          draw_offered_by: string | null
           fen: string
           finished_at: string | null
           id: string
+          increment_seconds: number | null
+          last_move_at: string | null
           mode: Database["public"]["Enums"]["game_mode"]
           moves: Json
           pgn: string
@@ -33,10 +38,13 @@ export type Database = {
           result_reason: string | null
           room_code: string | null
           status: Database["public"]["Enums"]["game_status"]
+          time_control: string | null
+          time_limit_seconds: number | null
           updated_at: string
           white_elo_after: number | null
           white_elo_before: number | null
           white_player: string | null
+          white_time_ms: number | null
         }
         Insert: {
           ai_color?: string | null
@@ -44,11 +52,16 @@ export type Database = {
           black_elo_after?: number | null
           black_elo_before?: number | null
           black_player?: string | null
+          black_time_ms?: number | null
           created_at?: string
           created_by?: string | null
+          draw_offer_at?: string | null
+          draw_offered_by?: string | null
           fen?: string
           finished_at?: string | null
           id?: string
+          increment_seconds?: number | null
+          last_move_at?: string | null
           mode: Database["public"]["Enums"]["game_mode"]
           moves?: Json
           pgn?: string
@@ -56,10 +69,13 @@ export type Database = {
           result_reason?: string | null
           room_code?: string | null
           status?: Database["public"]["Enums"]["game_status"]
+          time_control?: string | null
+          time_limit_seconds?: number | null
           updated_at?: string
           white_elo_after?: number | null
           white_elo_before?: number | null
           white_player?: string | null
+          white_time_ms?: number | null
         }
         Update: {
           ai_color?: string | null
@@ -67,11 +83,16 @@ export type Database = {
           black_elo_after?: number | null
           black_elo_before?: number | null
           black_player?: string | null
+          black_time_ms?: number | null
           created_at?: string
           created_by?: string | null
+          draw_offer_at?: string | null
+          draw_offered_by?: string | null
           fen?: string
           finished_at?: string | null
           id?: string
+          increment_seconds?: number | null
+          last_move_at?: string | null
           mode?: Database["public"]["Enums"]["game_mode"]
           moves?: Json
           pgn?: string
@@ -79,10 +100,13 @@ export type Database = {
           result_reason?: string | null
           room_code?: string | null
           status?: Database["public"]["Enums"]["game_status"]
+          time_control?: string | null
+          time_limit_seconds?: number | null
           updated_at?: string
           white_elo_after?: number | null
           white_elo_before?: number | null
           white_player?: string | null
+          white_time_ms?: number | null
         }
         Relationships: [
           {
@@ -402,6 +426,8 @@ export type Database = {
         | "draw"
         | "move_bonus"
         | "purchase"
+        | "timeout"
+        | "abandoned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -540,6 +566,8 @@ export const Constants = {
         "draw",
         "move_bonus",
         "purchase",
+        "timeout",
+        "abandoned",
       ],
     },
   },
