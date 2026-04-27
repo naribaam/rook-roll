@@ -5,8 +5,6 @@ const nextConfig: NextConfig = {
   // Lovable's platform expects build output in `dist/`. Next.js' static
   // export mode produces a self-contained, host-anywhere bundle that we
   // direct to ./dist.
-  output: "export",
-  distDir: "dist",
   trailingSlash: false,
   images: { unoptimized: true },
   eslint: { ignoreDuringBuilds: true },
