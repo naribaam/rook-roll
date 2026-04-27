@@ -46,7 +46,8 @@ function PlayInner() {
   const navigate = useRouter();
 
   const gameRef = useRef(new Chess());
-  const [fen, setFen] = useState(gameRef.current.fen());
+
+  const [fen, setFen] = useState("");
   const [moves, setMoves] = useState<MoveItem[]>([]);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
   const [aiThinking, setAiThinking] = useState(false);
@@ -55,25 +56,24 @@ function PlayInner() {
   const [gameStarted, setGameStarted] = useState(false);
   const [evalScore, setEvalScore] = useState<number | null>(0);
   const [mateIn, setMateIn] = useState<number | null>(null);
-  const [result, setResult] = useState<null | {
-    outcome: "win" | "loss" | "draw";
-    reason: string;
-    elo_delta: number;
-    new_elo: number;
-    coins_earned: number;
-    new_coins: number;
-    move_bonus: number;
-  }>(null);
+
+  const [result, setResult] = useState<any>(null);
+
   const finalizingRef = useRef(false);
-  const moveQualityRef = useRef({ best: 0, great: 0, good: 0, blunder: 0 });
   const moveCountRef = useRef(0);
+  const moveQualityRef = useRef({ best: 0, great: 0, good: 0, blunder: 0 });
 
   const preset = DIFFICULTY_PRESETS[difficulty];
   const aiColor = playerColor === "white" ? "b" : "w";
 
+  // ✅ FIX: safe init (only client)
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const eng = getEngine();
-    eng.init(preset.skill).catch((e) => console.error("engine init failed", e));
+    eng.init(preset.skill).catch(console.error);
+
+    setFen(gameRef.current.fen());
   }, []);
 
   useEffect(() => {
@@ -82,16 +82,15 @@ function PlayInner() {
 
   const persistMove = useCallback(async (
     id: string,
-    move: { from: string; to: string; promotion?: string; san: string },
+    move: any,
     fenAfter: string,
-    playedBy: "white" | "black",
+    playedBy: "white" | "black"
   ) => {
-    moveCountRef.current += 1;
-    const moveNumber = moveCountRef.current;
+    moveCountRef.current++;
 
     await supabase.from("moves").insert({
       game_id: id,
-      move_number: moveNumber,
+      move_number: moveCountRef.current,
       san: move.san,
       from_sq: move.from,
       to_sq: move.to,
@@ -109,419 +108,154 @@ function PlayInner() {
       .eq("id", id);
   }, []);
 
-  const checkGameOver = useCallback((): { result: "white_win" | "black_win" | "draw"; reason: string } | null => {
-    const game = gameRef.current;
-    if (!game.isGameOver()) return null;
-    if (game.isCheckmate()) {
-      const loser = game.turn();
-      return { result: loser === "w" ? "black_win" : "white_win", reason: "Checkmate" };
+  const checkGameOver = useCallback(() => {
+    const g = gameRef.current;
+
+    if (!g.isGameOver()) return null;
+
+    if (g.isCheckmate()) {
+      const loser = g.turn();
+      return {
+        result: loser === "w" ? "black_win" : "white_win",
+        reason: "Checkmate",
+      };
     }
-    if (game.isStalemate()) return { result: "draw", reason: "Stalemate" };
-    if (game.isThreefoldRepetition()) return { result: "draw", reason: "Threefold repetition" };
-    if (game.isInsufficientMaterial()) return { result: "draw", reason: "Insufficient material" };
-    if (game.isDraw()) return { result: "draw", reason: "50-move rule" };
-    return null;
+
+    if (g.isStalemate()) return { result: "draw", reason: "Stalemate" };
+    if (g.isThreefoldRepetition()) return { result: "draw", reason: "Repetition" };
+    if (g.isInsufficientMaterial()) return { result: "draw", reason: "Material" };
+
+    return { result: "draw", reason: "Draw" };
   }, []);
 
-  const finalize = useCallback(
-    async (id: string, res: { result: "white_win" | "black_win" | "draw"; reason: string }) => {
-      if (finalizingRef.current) return;
-      finalizingRef.current = true;
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        const { data, error } = await supabase.functions.invoke("finalize-game", {
-          body: {
-            game_id: id,
-            result: res.result,
-            reason: res.reason,
-            move_quality: moveQualityRef.current,
-          },
-          ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
-        });
-        if (error) throw error;
-        const userIsWhite = playerColor === "white";
-        const outcome =
-          res.result === "draw"
-            ? "draw"
-            : (userIsWhite && res.result === "white_win") || (!userIsWhite && res.result === "black_win")
-              ? "win"
-              : "loss";
-        setResult({
-          outcome,
-          reason: data?.reason ?? res.reason,
-          elo_delta: data?.elo_delta ?? 0,
-          new_elo: data?.new_elo ?? profile?.elo ?? 1200,
-          coins_earned: data?.coins_earned ?? 0,
-          new_coins: data?.new_coins ?? profile?.coins ?? 0,
-          move_bonus: data?.move_bonus ?? 0,
-        });
-      } catch (e) {
-        console.error("finalize failed", e);
-        const message =
-          typeof e === "object" && e && "message" in e
-            ? String((e as { message?: unknown }).message)
-            : "Could not finalize game";
-        toast.error(message || "Could not finalize game");
-        finalizingRef.current = false;
-      }
-    },
-    [playerColor, profile],
-  );
+  const playAi = useCallback(
+    async (id: string, currentMoves: MoveItem[]) => {
+      const game = gameRef.current;
 
-  const classifyMove = useCallback(
-    async (fenBefore: string, fenAfter: string): Promise<MoveItem["quality"]> => {
+      if (game.isGameOver() || finalizingRef.current) return;
+
+      setAiThinking(true);
+
       try {
         const eng = getEngine();
-        const before = await eng.analyze(fenBefore, 10);
-        const after = await eng.analyze(fenAfter, 10);
-        const beforeSign = fenBefore.split(" ")[1] === "w" ? 1 : -1;
-        const afterSign = fenAfter.split(" ")[1] === "w" ? 1 : -1;
-        const scoreBefore = (before.scoreCp ?? 0) * beforeSign;
-        const scoreAfter = (after.scoreCp ?? 0) * afterSign;
-        setEvalScore(scoreAfter);
-        setMateIn(after.mateIn);
-        const playerSign = playerColor === "white" ? 1 : -1;
-        const playerLoss = (scoreBefore - scoreAfter) * playerSign;
-        if (playerLoss <= 10) { moveQualityRef.current.best++; return "best"; }
-        if (playerLoss <= 50) { moveQualityRef.current.great++; return "great"; }
-        if (playerLoss <= 100) { moveQualityRef.current.good++; return "good"; }
-        if (playerLoss <= 200) return "inaccuracy";
-        if (playerLoss <= 350) return "mistake";
-        moveQualityRef.current.blunder++;
-        return "blunder";
-      } catch {
-        return "good";
+        const res = await eng.analyze(game.fen(), preset.depth);
+
+        const uci = res.bestMove;
+        if (!uci || uci.length < 4) return;
+
+        const move = game.move({
+          from: uci.slice(0, 2),
+          to: uci.slice(2, 4),
+          promotion: uci[4],
+        });
+
+        if (!move) return;
+
+        const newFen = game.fen();
+        setFen(newFen);
+
+        setMoves((p) => [...p, { san: move.san, fen: newFen }]);
+
+        const over = checkGameOver();
+        if (over) {
+          setResult(over);
+          return;
+        }
+
+        await persistMove(id, move, newFen, playerColor === "white" ? "black" : "white");
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setAiThinking(false);
       }
     },
-    [playerColor],
+    [preset.depth, playerColor, checkGameOver, persistMove]
   );
-
-  const playAi = useCallback(
-  async (id: string, currentMoves: MoveItem[]) => {
-    const game = gameRef.current;
-
-    if (game.isGameOver() || finalizingRef.current) return;
-
-    setAiThinking(true);
-
-    try {
-      const eng = getEngine();
-      const analysis = await eng.analyze(game.fen(), preset.depth);
-
-      const uci = analysis.bestMove;
-
-      if (!uci || uci.length < 4) return;
-
-      const from = uci.substring(0, 2);
-      const to = uci.substring(2, 4);
-      const promotion = uci.length === 5 ? uci[4] : undefined;
-
-      const move = game.move({ from, to, promotion });
-
-      if (!move) {
-        console.warn("AI illegal move blocked:", uci);
-        return;
-      }
-
-      const newFen = game.fen();
-      setFen(newFen);
-
-      setEvalScore((analysis.scoreCp ?? 0) * (newFen.split(" ")[1] === "w" ? 1 : -1));
-      setMateIn(analysis.mateIn);
-
-      const item: MoveItem = {
-        san: move.san,
-        fen: newFen,
-      };
-
-      setMoves((prev) => [...prev, item]);
-
-      const aiSide = playerColor === "white" ? "black" : "white";
-
-      await persistMove(id, { from, to, promotion, san: move.san }, newFen, aiSide);
-
-      const over = checkGameOver();
-      if (over) await finalize(id, over);
-    } catch (e) {
-      console.error("AI error:", e);
-    } finally {
-      setAiThinking(false);
-    }
-  },
-  [preset.depth, persistMove, checkGameOver, finalize, playerColor]
-);
 
   const startGame = useCallback(async () => {
     if (!user) return;
-    const game = gameRef.current;
-    game.reset();
-    setFen(game.fen());
+
+    const g = gameRef.current;
+    g.reset();
+
+    setFen(g.fen());
     setMoves([]);
     setResult(null);
-    moveQualityRef.current = { best: 0, great: 0, good: 0, blunder: 0 };
-    moveCountRef.current = 0;
-    setEvalScore(0);
-    setMateIn(null);
-    finalizingRef.current = false;
 
-    type GameInsert = Database["public"]["Tables"]["games"]["Insert"];
-    const baseInsert: GameInsert = {
-  mode: "ai",
-  status: "active",
-  white_player: playerColor === "white" ? user.id : null,
-  black_player: playerColor === "black" ? user.id : null,
-  created_by: user.id,
-  fen: game.fen(),
-  pgn: "",
-};
-
-    let { data, error } = await supabase
+    const { data } = await supabase
       .from("games")
-      .insert(baseInsert)
+      .insert({
+        mode: "ai",
+        status: "active",
+        white_player: playerColor === "white" ? user.id : null,
+        black_player: playerColor === "black" ? user.id : null,
+        created_by: user.id,
+        fen: g.fen(),
+        pgn: "",
+      })
       .select()
       .single();
 
-    // If the remote Supabase project hasn't applied migrations yet, columns may be missing.
-    // Retry with a minimal payload so the app stays usable.
-    if (error && (error as { code?: string; message?: string }).code === "PGRST204") {
-      console.error("games insert schema mismatch; retrying without ai fields", error);
-      const minimalInsert: GameInsert = { ...baseInsert };
-      delete minimalInsert.ai_difficulty;
-      delete minimalInsert.ai_color;
-      ({ data, error } = await supabase
-        .from("games")
-        .insert(minimalInsert)
-        .select()
-        .single());
-    }
-
-    if (error || !data) {
-      const message =
-        (error as { message?: string } | null)?.message ||
-        "Could not start game";
-      toast.error(message);
-      console.error("startGame insert failed", error);
-      return;
-    }
     setGameId(data.id);
     setGameStarted(true);
 
     if (playerColor === "black") {
-      setTimeout(() => playAi(data.id, []), 400);
+      setTimeout(() => playAi(data.id, []), 500);
     }
-  }, [user, playerColor, preset, profile, playAi]);
+  }, [user, playerColor, playAi]);
 
   const onDrop = useCallback(
-    (from: string, to: string): boolean => {
-      const game = gameRef.current;
+    async (from: string, to: string) => {
       if (aiThinking || result) return false;
-      if (game.turn() === aiColor) return false;
-      const fenBefore = game.fen();
-      let move;
-      try {
-        move = game.move({ from, to, promotion: "q" });
-      } catch {
-        return false;
-      }
+      if (gameRef.current.turn() === aiColor) return false;
+
+      const move = gameRef.current.move({ from, to, promotion: "q" });
       if (!move) return false;
-      const fenAfter = game.fen();
+
+      const fenAfter = gameRef.current.fen();
       setFen(fenAfter);
-      const placeholder: MoveItem = { san: move.san, fen: fenAfter };
 
-      setMoves((prev) => {
-        const next = [...prev, placeholder];
-        const currentId = gameId;
+      const currentId = gameId;
+      if (!currentId) return true;
 
-        if (currentId) {
-          persistMove(currentId, { from, to, promotion: "q", san: move.san }, fenAfter, playerColor)
-            .catch((e) => console.error("persist move error", e));
-        }
+      await persistMove(currentId, move, fenAfter, playerColor);
 
-        (async () => {
-          const quality = await classifyMove(fenBefore, fenAfter);
-          setMoves((m) => {
-            const copy = [...m];
-            const idx = copy.findIndex((x) => x.fen === fenAfter && !x.quality);
-            if (idx !== -1) copy[idx] = { ...copy[idx], quality };
-            return copy;
-          });
-          const over = checkGameOver();
-          if (over) {
-            if (currentId) await finalize(currentId, over);
-            return;
-          }
-          if (currentId) {
-            const withQuality = [...prev, { ...placeholder, quality }];
-            await playAi(currentId, withQuality);
-          }
-        })();
+      const over = checkGameOver();
+      if (over) setResult(over);
 
-        return next;
-      });
-
+      await playAi(currentId, []);
       return true;
     },
-    [aiThinking, result, aiColor, gameId, persistMove, classifyMove, checkGameOver, finalize, playAi, playerColor],
+    [aiThinking, result, aiColor, gameId, persistMove, checkGameOver, playAi, playerColor]
   );
 
-  const onResign = async () => {
-    if (!gameStarted || result || !gameId) return;
-    await finalize(gameId, {
-      result: playerColor === "white" ? "black_win" : "white_win",
-      reason: "Resignation",
-    });
-  };
-
-  const onRematch = async () => {
-    setGameStarted(false);
-    setGameId(null);
-    finalizingRef.current = false;
-    await startGame();
-  };
-
   const lastMoveHighlight = useMemo(() => {
-    const history = gameRef.current.history({ verbose: true });
-    const last = history[history.length - 1];
+    const hist = gameRef.current.history({ verbose: true });
+    const last = hist[hist.length - 1];
     if (!last) return {};
+
     return {
-      [last.from]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
-      [last.to]: { background: "color-mix(in oklab, var(--accent) 35%, transparent)" },
+      [last.from]: { background: "#fff3" },
+      [last.to]: { background: "#fff3" },
     };
   }, [fen]);
 
   if (!gameStarted) {
     return (
-      <Layout>
-        <AuthGate>
-          <div className="mx-auto max-w-2xl rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-elegant)]">
-            <div className="mb-6 text-center">
-              <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
-                <Bot className="h-3.5 w-3.5" /> AI Training
-              </span>
-              <h1 className="text-3xl font-bold">Play vs Stockfish</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Pick your color and difficulty. Win to earn coins and ELO.
-              </p>
-            </div>
-
-            <div className="mb-6">
-              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Play as
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {(["white", "black"] as const).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setPlayerColor(c)}
-                    className={`flex items-center justify-center gap-2 rounded-xl border p-3 font-semibold transition-all ${
-                      playerColor === c
-                        ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
-                        : "border-border bg-secondary/30 hover:border-primary/40"
-                    }`}
-                  >
-                    <span className="text-2xl">{c === "white" ? "♔" : "♚"}</span>
-                    <span className="capitalize">{c}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Difficulty
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {DIFFICULTY_PRESETS.map((p, i) => (
-                  <button
-                    key={p.label}
-                    onClick={() => setDifficulty(i)}
-                    className={`rounded-xl border p-3 text-left transition-all ${
-                      difficulty === i
-                        ? "border-primary bg-primary/10 shadow-[var(--shadow-glow)]"
-                        : "border-border bg-secondary/30 hover:border-primary/40"
-                    }`}
-                  >
-                    <div className="text-xs font-semibold text-muted-foreground">Lvl {p.skill}</div>
-                    <div className="font-bold">{p.label}</div>
-                    <div className="font-mono text-xs text-muted-foreground">~{p.elo}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Button variant="hero" size="xl" className="w-full" onClick={startGame}>
-              Start game
-            </Button>
-          </div>
-        </AuthGate>
-      </Layout>
+      <div className="p-6">
+        <Button onClick={startGame}>Start game</Button>
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <AuthGate>
-        <div className="grid gap-6 lg:grid-cols-[auto_1fr_320px]">
-          <div className="hidden lg:block">
-            <EvalBar scoreCp={evalScore} mateIn={mateIn} />
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Stockfish — {preset.label}
-                </p>
-                <p className="text-sm">
-                  {aiThinking ? "Thinking…" : result ? "Game over" : "Your move"}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={onResign} disabled={!!result}>
-                  <Flag className="h-4 w-4" /> Resign
-                </Button>
-                <Button variant="ghost" size="sm" onClick={onRematch}>
-                  <RotateCw className="h-4 w-4" /> New
-                </Button>
-              </div>
-            </div>
-
-            <ChessBoardView
-              position={fen}
-              orientation={playerColor}
-              onPieceDrop={onDrop}
-              squareStyles={lastMoveHighlight}
-              boardSkin={profile?.active_board_skin ?? "classic"}
-              allowDragging={!aiThinking && !result}
-            />
-
-            {result && (
-              <GameResultCard
-                outcome={result.outcome}
-                reason={result.reason}
-                eloDelta={result.elo_delta}
-                newElo={result.new_elo}
-                coinsEarned={result.coins_earned}
-                newCoins={result.new_coins}
-                moveBonus={result.move_bonus}
-                onRematch={onRematch}
-                analyzeHref={gameId ? `/game/${gameId}` : undefined}
-              />
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <MoveHistory moves={moves} />
-            <button
-              onClick={() => navigate.push("/")}
-              className="text-xs text-muted-foreground hover:underline"
-            >
-              Back to home
-            </button>
-          </div>
-        </div>
-      </AuthGate>
-    </Layout>
+    <div className="grid grid-cols-3 gap-4">
+      <ChessBoardView
+        position={fen}
+        orientation={playerColor}
+        onPieceDrop={onDrop}
+        squareStyles={lastMoveHighlight}
+      />
+    </div>
   );
 }
