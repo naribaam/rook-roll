@@ -198,39 +198,59 @@ function PlayInner() {
   );
 
   const playAi = useCallback(
-    async (id: string, currentMoves: MoveItem[]) => {
-      const game = gameRef.current;
-      if (game.isGameOver() || finalizingRef.current) return;
-      setAiThinking(true);
-      try {
-        const eng = getEngine();
-        const analysisResult = await eng.analyze(game.fen(), preset.depth);
-        if (!analysisResult.bestMove) return;
-        const from = analysisResult.bestMove.slice(0, 2);
-        const to = analysisResult.bestMove.slice(2, 4);
-        const promotion = analysisResult.bestMove.length === 5 ? analysisResult.bestMove[4] : undefined;
-        const move = game.move({ from, to, promotion });
-        if (!move) return;
-        const newFen = game.fen();
-        setFen(newFen);
-        const turnSign = newFen.split(" ")[1] === "w" ? 1 : -1;
-        setEvalScore((analysisResult.scoreCp ?? 0) * turnSign);
-        setMateIn(analysisResult.mateIn);
-        const item: MoveItem = { san: move.san, fen: newFen };
-        const next = [...currentMoves, item];
-        setMoves(next);
+  async (id: string, currentMoves: MoveItem[]) => {
+    const game = gameRef.current;
 
-        const aiSide = playerColor === "white" ? "black" : "white";
-        await persistMove(id, { from, to, promotion, san: move.san }, newFen, aiSide);
+    if (game.isGameOver() || finalizingRef.current) return;
 
-        const over = checkGameOver();
-        if (over) await finalize(id, over);
-      } finally {
-        setAiThinking(false);
+    setAiThinking(true);
+
+    try {
+      const eng = getEngine();
+      const analysis = await eng.analyze(game.fen(), preset.depth);
+
+      const uci = analysis.bestMove;
+
+      if (!uci || uci.length < 4) return;
+
+      const from = uci.substring(0, 2);
+      const to = uci.substring(2, 4);
+      const promotion = uci.length === 5 ? uci[4] : undefined;
+
+      const move = game.move({ from, to, promotion });
+
+      if (!move) {
+        console.warn("AI illegal move blocked:", uci);
+        return;
       }
-    },
-    [preset.depth, persistMove, checkGameOver, finalize, playerColor],
-  );
+
+      const newFen = game.fen();
+      setFen(newFen);
+
+      setEvalScore((analysis.scoreCp ?? 0) * (newFen.split(" ")[1] === "w" ? 1 : -1));
+      setMateIn(analysis.mateIn);
+
+      const item: MoveItem = {
+        san: move.san,
+        fen: newFen,
+      };
+
+      setMoves((prev) => [...prev, item]);
+
+      const aiSide = playerColor === "white" ? "black" : "white";
+
+      await persistMove(id, { from, to, promotion, san: move.san }, newFen, aiSide);
+
+      const over = checkGameOver();
+      if (over) await finalize(id, over);
+    } catch (e) {
+      console.error("AI error:", e);
+    } finally {
+      setAiThinking(false);
+    }
+  },
+  [preset.depth, persistMove, checkGameOver, finalize, playerColor]
+);
 
   const startGame = useCallback(async () => {
     if (!user) return;
@@ -247,18 +267,14 @@ function PlayInner() {
 
     type GameInsert = Database["public"]["Tables"]["games"]["Insert"];
     const baseInsert: GameInsert = {
-        mode: "ai",
-        status: "active",
-        white_player: playerColor === "white" ? user.id : null,
-        black_player: playerColor === "black" ? user.id : null,
-        ai_difficulty: preset.skill,
-        ai_color: playerColor === "white" ? "black" : "white",
-        created_by: user.id,
-        fen: game.fen(),
-        pgn: "",
-        white_elo_before: playerColor === "white" ? (profile?.elo ?? 1200) : preset.elo,
-        black_elo_before: playerColor === "black" ? (profile?.elo ?? 1200) : preset.elo,
-      };
+  mode: "ai",
+  status: "active",
+  white_player: playerColor === "white" ? user.id : null,
+  black_player: playerColor === "black" ? user.id : null,
+  created_by: user.id,
+  fen: game.fen(),
+  pgn: "",
+};
 
     let { data, error } = await supabase
       .from("games")
