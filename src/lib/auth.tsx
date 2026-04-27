@@ -83,13 +83,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
         setTimeout(() => {
           ensureProfile(s.user).then(setProfile);
         }, 0);
+        // After OAuth callback, redirect to homepage if on a non-app route
+        if (event === "SIGNED_IN") {
+          const path = window.location.pathname;
+          const validRoutes = ["/", "/play", "/multiplayer", "/leaderboard", "/store", "/profile"];
+          const isValid = validRoutes.some(
+            (r) => path === r || path.startsWith("/game/") || path.startsWith("/room/"),
+          );
+          if (!isValid) {
+            window.location.replace("/");
+          }
+        }
       } else {
         setProfile(null);
       }
@@ -134,11 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signInWithGoogle = async () => {
-    // Use Lovable Cloud's managed OAuth broker so the callback always
-    // resolves against the live deployed origin (no localhost redirects),
-    // even on Vercel preview / production URLs.
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}/`,
     });
     if (result.error) {
       console.error("Google sign-in error", result.error);
