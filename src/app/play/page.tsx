@@ -196,7 +196,13 @@ function PlayInner() {
       .select()
       .single();
 
-    setGameId(data.id);
+    if (!data) {
+  toast.error("Game not created");
+  return;
+}
+
+setGameId(data.id);
+setGameStarted(true);
     setGameStarted(true);
 
     if (playerColor === "black") {
