@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { AuthProvider } from "@/lib/auth";
-import { Toaster } from "@/components/ui/sonner";
+import Providers from "./providers";
 import "../styles.css";
 
 export const metadata: Metadata = {
@@ -29,10 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
-          {children}
-          <Toaster richColors position="top-right" />
-        </AuthProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
