@@ -129,6 +129,53 @@ export type Database = {
           },
         ]
       }
+      moves: {
+        Row: {
+          fen: string
+          from_sq: string
+          game_id: string
+          id: string
+          move_number: number
+          played_at: string
+          played_by: string
+          promotion: string | null
+          san: string
+          to_sq: string
+        }
+        Insert: {
+          fen: string
+          from_sq: string
+          game_id: string
+          id?: string
+          move_number: number
+          played_at?: string
+          played_by: string
+          promotion?: string | null
+          san: string
+          to_sq: string
+        }
+        Update: {
+          fen?: string
+          from_sq?: string
+          game_id?: string
+          id?: string
+          move_number?: number
+          played_at?: string
+          played_by?: string
+          promotion?: string | null
+          san?: string
+          to_sq?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moves_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active_board_skin: string
