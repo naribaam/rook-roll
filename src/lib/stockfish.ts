@@ -1,6 +1,10 @@
-/* Stockfish engine via Web Worker.
- * Prefer same-origin worker (`/stockfish/stockfish.js`) for production reliability.
- * Fall back to CDN if the local asset is missing.
+/* Stockfish engine running entirely from the public CDN.
+ *
+ * No local /public/stockfish assets, no .wasm files, no WebAssembly.instantiate.
+ * We bootstrap a Web Worker from a tiny inline blob that imports the official
+ * stockfish.js build from jsDelivr. This works on Vercel (or any static host)
+ * without shipping any binary, and avoids the "expected wasm magic word" /
+ * 404 issues entirely.
  */
 
 export type AnalysisResult = {
@@ -9,76 +13,53 @@ export type AnalysisResult = {
   mateIn: number | null;
 };
 
-export type StockfishInstance = {
-  send: (command: string) => void;
-  onMessage: (callback: (line: string) => void) => () => void;
-  destroy: () => void;
-};
-
 const STOCKFISH_CDN_URL =
   "https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js";
 
-function stockfishWorkerUrl(): string {
-  if (typeof window === "undefined") return STOCKFISH_CDN_URL;
-  // Served from `public/stockfish/worker.js`
-  // This wrapper forces the .wasm to resolve as `/stockfish/stockfish.wasm`.
-  return new URL("/stockfish/worker.js", window.location.href).toString();
-}
-
-export function createStockfish(): StockfishInstance {
-  let worker: Worker;
-  try {
-    worker = new Worker(stockfishWorkerUrl());
-  } catch {
-    worker = new Worker(STOCKFISH_CDN_URL);
-  }
-  const listeners: ((line: string) => void)[] = [];
-
-  worker.onmessage = (e: MessageEvent) => {
-    const line = typeof e.data === "string" ? e.data : "";
-    if (line) {
-      for (const l of listeners) l(line);
+function createWorker(): Worker {
+  // The worker code runs in its own scope; importScripts pulls in Stockfish
+  // from the CDN and wires its own postMessage to the parent.
+  const bootstrap = `
+    self.importScripts(${JSON.stringify(STOCKFISH_CDN_URL)});
+    // stockfish.js attaches an STOCKFISH() factory or self-postMessage already.
+    // Newer builds expose STOCKFISH() returning an engine object with onmessage / postMessage.
+    if (typeof STOCKFISH === "function") {
+      const engine = STOCKFISH();
+      engine.onmessage = function (line) { self.postMessage(line); };
+      self.onmessage = function (e) { engine.postMessage(e.data); };
     }
-  };
-
-  return {
-    send(command: string) {
-      worker.postMessage(command);
-    },
-    onMessage(callback: (line: string) => void) {
-      listeners.push(callback);
-      return () => {
-        const idx = listeners.indexOf(callback);
-        if (idx !== -1) listeners.splice(idx, 1);
-      };
-    },
-    destroy() {
-      worker.terminate();
-      listeners.length = 0;
-    },
-  };
+    // Older builds already use self.postMessage / self.onmessage directly,
+    // in which case nothing else to do.
+  `;
+  const blob = new Blob([bootstrap], { type: "application/javascript" });
+  const url = URL.createObjectURL(blob);
+  return new Worker(url);
 }
 
 export class StockfishEngine {
-  private sf: StockfishInstance | null = null;
-  private ready = false;
+  private worker: Worker | null = null;
   private listeners: ((line: string) => void)[] = [];
+  private ready = false;
 
   async init(skillLevel = 10) {
     if (typeof window === "undefined") return;
-    if (this.sf) {
+    if (this.worker) {
       await this.send("isready", (l) => l === "readyok");
       return;
     }
 
-    this.sf = createStockfish();
-
-    this.sf.onMessage((line) => {
+    this.worker = createWorker();
+    this.worker.onmessage = (e: MessageEvent) => {
+      const line = typeof e.data === "string" ? e.data : "";
+      if (!line) return;
       for (const l of this.listeners) l(line);
-    });
+    };
+    this.worker.onerror = (err) => {
+      console.error("Stockfish worker error", err);
+    };
 
     await this.send("uci", (l) => l === "uciok");
-    await this.send(
+    this.post(
       `setoption name Skill Level value ${Math.max(0, Math.min(20, skillLevel))}`,
     );
     await this.send("isready", (l) => l === "readyok");
@@ -96,7 +77,7 @@ export class StockfishEngine {
   }
 
   private post(cmd: string) {
-    this.sf?.send(cmd);
+    this.worker?.postMessage(cmd);
   }
 
   private send(cmd: string, until?: (line: string) => boolean) {
@@ -151,8 +132,8 @@ export class StockfishEngine {
   }
 
   destroy() {
-    this.sf?.destroy();
-    this.sf = null;
+    this.worker?.terminate();
+    this.worker = null;
     this.ready = false;
     this.listeners = [];
   }
