@@ -1,15 +1,38 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Coins, Trophy, LogOut, User as UserIcon, Crown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Coins, Trophy, LogOut, User as UserIcon, Crown, Mail, CircleAlert as AlertCircle } from "lucide-react";
 
 export function Header() {
-  const { user, profile, signInWithGoogle, signOut } = useAuth();
+  const { user, profile, authError, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, clearAuthError } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"choose" | "email">("choose");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    await signInWithEmail(email, password);
+    setSubmitting(false);
+    if (!authError) setAuthOpen(false);
+  };
+
+  const handleEmailSignUp = async () => {
+    setSubmitting(true);
+    await signUpWithEmail(email, password);
+    setSubmitting(false);
+    if (!authError) setAuthOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
@@ -67,13 +90,99 @@ export function Header() {
               </Button>
             </>
           ) : (
-            <Button
-              variant="hero"
-              size="sm"
-              onClick={() => signInWithGoogle()}
-            >
-              Sign in with Google
-            </Button>
+            <Dialog open={authOpen} onOpenChange={(open) => { setAuthOpen(open); if (!open) { clearAuthError(); setAuthMode("choose"); } }}>
+              <DialogTrigger asChild>
+                <Button variant="hero" size="sm">
+                  Sign in
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Sign in to Gambit</DialogTitle>
+                </DialogHeader>
+
+                {authError && (
+                  <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{authError.message}</span>
+                  </div>
+                )}
+
+                {authMode === "choose" && (
+                  <div className="space-y-3">
+                    <Button
+                      variant="hero"
+                      size="lg"
+                      className="w-full"
+                      onClick={async () => {
+                        await signInWithGoogle();
+                      }}
+                    >
+                      Sign in with Google
+                    </Button>
+                    <div className="relative my-2">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-border" />
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="bg-background px-2 text-muted-foreground">or</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full"
+                      onClick={() => { clearAuthError(); setAuthMode("email"); }}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Sign in with email
+                    </Button>
+                  </div>
+                )}
+
+                {authMode === "email" && (
+                  <form className="space-y-3" onSubmit={handleEmailSignIn}>
+                    <Input
+                      type="email"
+                      placeholder="Email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                    />
+                    <Input
+                      type="password"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      minLength={6}
+                    />
+                    <Button type="submit" variant="hero" size="lg" className="w-full" disabled={submitting}>
+                      {submitting ? "Signing in..." : "Sign in"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="w-full"
+                      disabled={submitting}
+                      onClick={handleEmailSignUp}
+                    >
+                      Create account
+                    </Button>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:underline"
+                      onClick={() => { clearAuthError(); setAuthMode("choose"); }}
+                    >
+                      Back
+                    </button>
+                  </form>
+                )}
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>

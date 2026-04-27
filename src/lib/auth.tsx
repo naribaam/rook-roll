@@ -5,11 +5,11 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   type ReactNode,
 } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 
 export type Profile = {
   id: string;
@@ -26,17 +26,46 @@ export type Profile = {
   games_drawn: number;
 };
 
+type AuthErrorInfo = {
+  message: string;
+  code?: string;
+};
+
 type AuthContextValue = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  authError: AuthErrorInfo | null;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  clearAuthError: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function toAuthError(error: AuthError): AuthErrorInfo {
+  const msg = error.message?.toLowerCase() ?? "";
+  if (msg.includes("invalid login credentials")) {
+    return { message: "Invalid email or password", code: error.status?.toString() };
+  }
+  if (msg.includes("user already registered")) {
+    return { message: "An account with this email already exists", code: error.status?.toString() };
+  }
+  if (msg.includes("email not confirmed")) {
+    return { message: "Please check your email to confirm your account", code: error.status?.toString() };
+  }
+  if (msg.includes("password should be")) {
+    return { message: "Password must be at least 6 characters", code: error.status?.toString() };
+  }
+  if (msg.includes("network") || msg.includes("fetch")) {
+    return { message: "Network error — please check your connection", code: error.status?.toString() };
+  }
+  return { message: error.message || "Authentication failed", code: error.status?.toString() };
+}
 
 async function ensureProfile(user: User): Promise<Profile | null> {
   const { data, error } = await supabase
@@ -52,7 +81,6 @@ async function ensureProfile(user: User): Promise<Profile | null> {
 
   if (data) return data as Profile;
 
-  // Profile doesn't exist yet — create it
   const meta = user.user_metadata ?? {};
   const name = meta.full_name || meta.name || user.email?.split("@")[0] || "Player";
   const avatarUrl = meta.avatar_url || meta.picture || null;
@@ -81,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<AuthErrorInfo | null>(null);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
@@ -90,7 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(() => {
           ensureProfile(s.user).then(setProfile);
         }, 0);
-        // After OAuth callback, redirect to homepage if on a non-app route
         if (event === "SIGNED_IN") {
           const path = window.location.pathname;
           const validRoutes = ["/", "/play", "/multiplayer", "/leaderboard", "/store", "/profile"];
@@ -144,26 +172,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
-  const signInWithGoogle = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: `${window.location.origin}/`,
+  const signInWithGoogle = useCallback(async () => {
+    setAuthError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
     });
-    if (result.error) {
-      console.error("Google sign-in error", result.error);
+    if (error) {
+      setAuthError(toAuthError(error));
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    setAuthError(null);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthError(toAuthError(error));
+    }
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+    setAuthError(null);
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      setAuthError(toAuthError(error));
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       const p = await ensureProfile(user);
       setProfile(p);
     }
-  };
+  }, [user]);
+
+  const clearAuthError = useCallback(() => setAuthError(null), []);
 
   return (
     <AuthContext.Provider
@@ -172,9 +222,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         profile,
         loading,
+        authError,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
         signOut,
         refreshProfile,
+        clearAuthError,
       }}
     >
       {children}

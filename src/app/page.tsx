@@ -67,7 +67,7 @@ export default function HomePage() {
             )}
           </div>
           <p className="mt-4 text-xs text-primary-foreground/70">
-            Sign in with Google • 200 coins on signup
+            Sign in with Google or email • 200 coins on signup
           </p>
         </div>
       </section>
@@ -105,7 +105,7 @@ export default function HomePage() {
         <HowCard
           n="1"
           icon={<Crown className="h-5 w-5" />}
-          title="Sign in with Google"
+          title="Create an account"
           desc="Get 200 coins as a welcome bonus. No card required."
         />
         <HowCard
