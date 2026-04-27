@@ -1,5 +1,8 @@
-export const dynamicParams = true;
-export function generateStaticParams() { return []; }
+export const dynamic = "force-static";
+export const dynamicParams = false;
+export function generateStaticParams() {
+  return [{ gameId: "_" }];
+}
 export default function Layout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
