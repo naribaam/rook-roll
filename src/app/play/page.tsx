@@ -28,6 +28,7 @@ const DIFFICULTY_PRESETS = [
 type MoveItem = {
   san: string;
   fen: string;
+  quality?: "best" | "great" | "good" | "inaccuracy" | "mistake" | "blunder";
 };
 
 export default function PlayPage() {
@@ -41,12 +42,11 @@ export default function PlayPage() {
 }
 
 function PlayInner() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const gameRef = useRef(new Chess());
 
-  const [mode, setMode] = useState<"ai" | "mp">("ai");
   const [fen, setFen] = useState(gameRef.current.fen());
   const [moves, setMoves] = useState<MoveItem[]>([]);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
@@ -54,23 +54,21 @@ function PlayInner() {
   const [gameStarted, setGameStarted] = useState(false);
   const [gameId, setGameId] = useState<string | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
-  const [result, setResult] = useState<any>(null);
 
   const preset = DIFFICULTY_PRESETS[difficulty];
   const aiColor = playerColor === "white" ? "b" : "w";
 
-  // INIT ENGINE
   useEffect(() => {
     const eng = getEngine();
-    eng.init(preset.skill).catch(console.error);
-  }, [preset.skill]);
+    eng.init(preset.skill);
+    setFen(gameRef.current.fen());
+  }, []);
 
   useEffect(() => {
     getEngine().setSkill(preset.skill);
   }, [preset.skill]);
 
-  // START AI GAME
-  const startGame = async () => {
+  const startGame = useCallback(async () => {
     if (!user) return;
 
     const g = gameRef.current;
@@ -78,7 +76,7 @@ function PlayInner() {
 
     setFen(g.fen());
     setMoves([]);
-    setResult(null);
+    setGameStarted(true);
 
     const { data, error } = await supabase
       .from("games")
@@ -100,200 +98,119 @@ function PlayInner() {
     }
 
     setGameId(data.id);
-    setGameStarted(true);
 
     if (playerColor === "black") {
-      setTimeout(() => playAi(data.id), 400);
+      setTimeout(() => playAi(data.id), 500);
     }
-  };
+  }, [user, playerColor]);
 
-  // MULTIPLAYER START
-  const startMultiplayer = async () => {
-    if (!user) return;
-
-    const g = gameRef.current;
-    g.reset();
-
-    setFen(g.fen());
-    setMoves([]);
-    setResult(null);
-
-    const { data, error } = await supabase
-      .from("games")
-      .insert({
-        mode: "mp",
-        status: "active",
-        white_player: user.id,
-        fen: g.fen(),
-        pgn: "",
-      })
-      .select()
-      .single();
-
-    if (!data || error) {
-      toast.error("MP game failed");
-      return;
-    }
-
-    setGameId(data.id);
-    setGameStarted(true);
-
-    // realtime sync
-    supabase
-      .channel(`game:${data.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "games",
-          filter: `id=eq.${data.id}`,
-        },
-        (payload) => {
-          const newFen = payload.new.fen;
-          setFen(newFen);
-          gameRef.current.load(newFen);
-        }
-      )
-      .subscribe();
-  };
-
-  // AI MOVE (OPTIMIZED)
-  const playAi = async (id: string) => {
+  const playAi = useCallback(async (id: string) => {
     const game = gameRef.current;
-
-    if (game.isGameOver() || aiThinking) return;
 
     setAiThinking(true);
 
-    try {
-      const eng = getEngine();
-      const res = await eng.analyze(game.fen(), Math.min(preset.depth, 10));
+    const eng = getEngine();
+    const res = await eng.analyze(game.fen(), preset.depth);
 
-      const uci = res.bestMove;
-      if (!uci) return;
+    const uci = res.bestMove;
+    if (!uci) return;
 
-      const move = game.move({
-        from: uci.slice(0, 2),
-        to: uci.slice(2, 4),
-        promotion: uci[4],
-      });
+    const move = game.move({
+      from: uci.slice(0, 2),
+      to: uci.slice(2, 4),
+      promotion: "q",
+    });
 
-      if (!move) return;
+    if (!move) return;
 
-      const newFen = game.fen();
+    const newFen = game.fen();
+    setFen(newFen);
+
+    setMoves((m) => [...m, { san: move.san, fen: newFen }]);
+
+    setAiThinking(false);
+  }, [preset.depth]);
+
+  const onDrop = useCallback(
+    (from: string, to: string) => {
+      if (aiThinking) return false;
+
+      const move = gameRef.current.move({ from, to, promotion: "q" });
+      if (!move) return false;
+
+      const newFen = gameRef.current.fen();
       setFen(newFen);
 
       setMoves((m) => [...m, { san: move.san, fen: newFen }]);
 
-      await supabase
-        .from("games")
-        .update({ fen: newFen })
-        .eq("id", id);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setAiThinking(false);
-    }
-  };
-
-  // MOVE HANDLER (FIXED - NO ASYNC RETURN)
-  const onDrop = useCallback(
-    (from: string, to: string): boolean => {
-      const game = gameRef.current;
-
-      if (aiThinking || result) return false;
-      if (mode === "ai" && game.turn() === aiColor) return false;
-
-      const move = game.move({ from, to, promotion: "q" });
-      if (!move) return false;
-
-      const fenAfter = game.fen();
-      setFen(fenAfter);
-
-      setMoves((m) => [...m, { san: move.san, fen: fenAfter }]);
-
-      const id = gameId;
-
-      if (id) {
-        if (mode === "mp") {
-          supabase.from("games").update({ fen: fenAfter }).eq("id", id);
-        }
-
-        if (mode === "ai") {
-          setTimeout(() => playAi(id), 300);
-        }
-      }
+      if (gameId) playAi(gameId);
 
       return true;
     },
-    [aiThinking, result, mode, aiColor, gameId]
+    [aiThinking, gameId, playAi]
   );
 
-  // UI
+  const lastMoveHighlight = useMemo(() => {
+    const hist = gameRef.current.history({ verbose: true });
+    const last = hist[hist.length - 1];
+    if (!last) return {};
+
+    return {
+      [last.from]: { background: "#fff2" },
+      [last.to]: { background: "#fff2" },
+    };
+  }, [fen]);
+
   if (!gameStarted) {
     return (
-      <Layout>
-        <AuthGate>
-          <div className="mx-auto max-w-3xl p-6 space-y-6">
+      <div className="p-6 space-y-4">
+        <h1 className="text-2xl font-bold">Play vs AI</h1>
 
-            <h1 className="text-3xl font-bold">Play Chess</h1>
+        <div className="flex gap-2">
+          <Button onClick={() => setPlayerColor("white")}>White</Button>
+          <Button onClick={() => setPlayerColor("black")}>Black</Button>
+        </div>
 
-            <div className="flex gap-2">
-              <Button onClick={() => setMode("ai")} variant={mode === "ai" ? "default" : "outline"}>
-                vs AI
-              </Button>
+        <div className="flex gap-2 flex-wrap">
+          {DIFFICULTY_PRESETS.map((p, i) => (
+            <Button key={p.label} onClick={() => setDifficulty(i)}>
+              {p.label}
+            </Button>
+          ))}
+        </div>
 
-              <Button onClick={() => setMode("mp")} variant={mode === "mp" ? "default" : "outline"}>
-                Multiplayer
-              </Button>
-            </div>
-
-            {mode === "ai" && (
-              <div className="space-y-4">
-                <div className="flex gap-2 flex-wrap">
-                  {DIFFICULTY_PRESETS.map((p, i) => (
-                    <Button
-                      key={p.label}
-                      variant={difficulty === i ? "default" : "outline"}
-                      onClick={() => setDifficulty(i)}
-                    >
-                      {p.label}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={() => setPlayerColor("white")}>White</Button>
-                  <Button onClick={() => setPlayerColor("black")}>Black</Button>
-                </div>
-
-                <Button onClick={startGame}>Start AI</Button>
-              </div>
-            )}
-
-            {mode === "mp" && (
-              <Button onClick={startMultiplayer}>
-                Create Multiplayer Game
-              </Button>
-            )}
-
-          </div>
-        </AuthGate>
-      </Layout>
+        <Button onClick={startGame} className="w-full">
+          Start Game
+        </Button>
+      </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4 p-4">
-      <ChessBoardView
-        position={fen}
-        orientation={playerColor}
-        onPieceDrop={onDrop}
-      />
+    <div className="grid grid-cols-[1fr_300px] gap-6 p-6 w-full">
+      
+      {/* BOARD */}
+      <div className="flex justify-center">
+        <ChessBoardView
+          position={fen}
+          orientation={playerColor}
+          onPieceDrop={onDrop}
+          squareStyles={lastMoveHighlight}
+        />
+      </div>
 
-      <MoveHistory moves={moves} />
-      <EvalBar scoreCp={0} mateIn={null} />
+      {/* SIDE PANEL */}
+      <div className="space-y-4">
+        <div className="text-sm text-muted-foreground">
+          {aiThinking ? "AI thinking..." : "Your move"}
+        </div>
+
+        <MoveHistory moves={moves} />
+
+        <Button onClick={() => router.push("/")}>
+          Home
+        </Button>
+      </div>
     </div>
   );
 }
