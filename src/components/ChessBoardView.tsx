@@ -1,5 +1,5 @@
 import { Chessboard } from "react-chessboard";
-import { boardColors } from "@/lib/shop";
+import { boardColors, pieceFilterForSkin } from "@/lib/shop";
 import type { CSSProperties } from "react";
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   arrows?: { startSquare: string; endSquare: string; color: string }[];
   squareStyles?: Record<string, CSSProperties>;
   boardSkin?: string;
+  pieceSkin?: string;
   allowDragging?: boolean;
 };
 
@@ -19,14 +20,19 @@ export function ChessBoardView({
   arrows = [],
   squareStyles = {},
   boardSkin = "classic",
+  pieceSkin = "classic",
   allowDragging = true,
 }: Props) {
   const colors = boardColors(boardSkin);
+  const filter = pieceFilterForSkin(pieceSkin);
   return (
     <div
-      className="rounded-2xl bg-card p-3 shadow-[var(--shadow-board)]"
-      style={{ width: "100%" }}
+      className="rounded-2xl bg-card p-3 shadow-[var(--shadow-board)] ring-1 ring-border/60"
+      style={{ width: "100%", ["--piece-filter" as string]: filter } as CSSProperties}
     >
+      <style>{`
+        [data-piece] svg, [data-piece] img { filter: var(--piece-filter, none); transition: filter .25s ease; }
+      `}</style>
       <Chessboard
         options={{
           id: "main-board",
