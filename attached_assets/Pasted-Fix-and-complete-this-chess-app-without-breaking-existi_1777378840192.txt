@@ -1,0 +1,79 @@
+Fix and complete this chess app without breaking existing logic.
+
+CRITICAL BUG (AUTH):
+- Fix error: "Unsupported provider: missing OAuth secret"
+- Disable OAuth providers that are not configured (Google, GitHub, etc)
+- Use email/password auth only if OAuth secrets are missing
+- Ensure Supabase auth works correctly
+- Add proper error handling for signup/login
+
+----------------------------------------
+
+1) GAME END LOGIC (VERY IMPORTANT)
+- Detect correctly:
+  - checkmate
+  - stalemate
+  - draw (50-move rule, repetition, insufficient material)
+- Stop game when finished
+- Show result UI (win / loss / draw + reason)
+- Block moves after game ends
+
+----------------------------------------
+
+2) STOCKFISH ANALYSIS (FIX + IMPROVE)
+- Fix engine analysis (currently unstable)
+- Update evaluation bar after every move
+- Show mate-in if available
+- Run analysis async (no UI freeze)
+- Limit depth for performance (fast response)
+
+----------------------------------------
+
+3) AI GAME IMPROVEMENTS
+- Reduce lag when AI moves
+- Prevent illegal moves
+- Make AI move smoothly after player move
+- Keep UI responsive
+
+----------------------------------------
+
+4) MULTIPLAYER (ADD FROM SCRATCH)
+- Create room system:
+  - create room
+  - join room by ID
+- Assign roles (white / black)
+- Sync moves via Supabase realtime
+- Allow move only on player turn
+- Save moves to database
+- Sync board state between players
+- Handle disconnects safely
+
+----------------------------------------
+
+5) LOCAL 2-PLAYER MODE
+- Add "Play with Friend" mode
+- Same device (no AI)
+- Alternate turns automatically
+- Use same rules and game-end detection
+
+----------------------------------------
+
+6) UI / UX IMPROVEMENTS
+- Improve lobby screen:
+  - mode selection:
+    - vs AI
+    - multiplayer
+    - local 2-player
+- Improve difficulty selection UI
+- Center chess board and scale properly
+- Clean layout (chess.com / lichess style)
+- Better buttons, spacing, typography
+
+----------------------------------------
+
+7) IMPORTANT RULES
+- DO NOT rewrite entire project
+- DO NOT break existing components
+- KEEP using chess.js
+- EXTEND current logic instead of replacing
+- Keep code modular and clean
