@@ -6,8 +6,6 @@ import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
 import { ChessBoardView } from "@/components/ChessBoardView";
 import { MoveHistory } from "@/components/MoveHistory";
-import { GameResultCard } from "@/components/GameResultCard";
-import { EvalBar } from "@/components/EvalBar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
