@@ -6,15 +6,12 @@ import { Layout } from "@/components/Layout";
 import { AuthGate } from "@/components/AuthGate";
 import { ChessBoardView } from "@/components/ChessBoardView";
 import { MoveHistory } from "@/components/MoveHistory";
-import { GameResultCard } from "@/components/GameResultCard";
-import { EvalBar } from "@/components/EvalBar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
 import { getEngine } from "@/lib/stockfish";
 import { useRouter } from "next/navigation";
-import { Bot, Flag, RotateCw } from "lucide-react";
+import { Bot, Crown, Sparkles, Trophy, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 const DIFFICULTY_PRESETS = [
@@ -42,7 +39,7 @@ export default function PlayPage() {
 }
 
 function PlayInner() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
 
   const gameRef = useRef(new Chess());
@@ -163,54 +160,135 @@ function PlayInner() {
 
   if (!gameStarted) {
     return (
-      <div className="p-6 space-y-4">
-        <h1 className="text-2xl font-bold">Play vs AI</h1>
-
-        <div className="flex gap-2">
-          <Button onClick={() => setPlayerColor("white")}>White</Button>
-          <Button onClick={() => setPlayerColor("black")}>Black</Button>
+      <div className="mx-auto max-w-3xl space-y-8">
+        <div className="rounded-3xl bg-[image:var(--gradient-hero)] px-6 py-10 text-primary-foreground shadow-[var(--shadow-elegant)] md:px-10">
+          <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur">
+            <Bot className="h-3.5 w-3.5" /> AI training
+          </span>
+          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Play vs AI</h1>
+          <p className="mt-2 max-w-lg text-sm text-primary-foreground/85">
+            Choose your side and difficulty. Stockfish runs locally in your browser.
+          </p>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {DIFFICULTY_PRESETS.map((p, i) => (
-            <Button key={p.label} onClick={() => setDifficulty(i)}>
-              {p.label}
-            </Button>
-          ))}
-        </div>
+        {/* Color */}
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Crown className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Your color</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(["white", "black"] as const).map((c) => {
+              const active = playerColor === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setPlayerColor(c)}
+                  className={`group relative flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all ${
+                    active
+                      ? "border-primary bg-primary/5 shadow-[var(--shadow-elegant)]"
+                      : "border-border bg-background hover:border-primary/40 hover:bg-secondary/40"
+                  }`}
+                >
+                  <div
+                    className={`grid h-14 w-14 place-items-center rounded-xl text-3xl shadow-inner ${
+                      c === "white"
+                        ? "bg-gradient-to-br from-neutral-100 to-neutral-300 text-neutral-800"
+                        : "bg-gradient-to-br from-neutral-800 to-black text-neutral-100"
+                    }`}
+                  >
+                    ♚
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold capitalize">{c}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {c === "white" ? "Move first" : "Move second"}
+                    </p>
+                  </div>
+                  {active && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-        <Button onClick={startGame} className="w-full">
-          Start Game
+        {/* Difficulty */}
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Difficulty</h2>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {DIFFICULTY_PRESETS.map((p, i) => {
+              const active = difficulty === i;
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setDifficulty(i)}
+                  className={`rounded-xl border-2 p-3 text-center transition-all ${
+                    active
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border bg-background hover:border-primary/40"
+                  }`}
+                >
+                  <p className="text-sm font-semibold">{p.label}</p>
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Trophy className="h-3 w-3" /> {p.elo}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <Button onClick={startGame} variant="hero" size="xl" className="w-full">
+          Start game <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-[1fr_300px] gap-6 p-6 w-full">
-      
+    <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       {/* BOARD */}
-      <div className="flex justify-center">
+      <div className="mx-auto w-full max-w-[640px]">
         <ChessBoardView
           position={fen}
           orientation={playerColor}
           onPieceDrop={onDrop}
           squareStyles={lastMoveHighlight}
+          boardSkin={profile?.active_board_skin ?? "classic"}
+          pieceSkin={profile?.active_piece_skin ?? "classic"}
         />
       </div>
 
       {/* SIDE PANEL */}
-      <div className="space-y-4">
-        <div className="text-sm text-muted-foreground">
-          {aiThinking ? "AI thinking..." : "Your move"}
+      <aside className="space-y-4">
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {preset.label} · ELO ~{preset.elo}
+          </p>
+          <p className="mt-2 flex items-center gap-2 text-sm font-medium">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                aiThinking ? "animate-pulse bg-accent" : "bg-primary"
+              }`}
+            />
+            {aiThinking ? "AI is thinking…" : "Your move"}
+          </p>
         </div>
 
-        <MoveHistory moves={moves} />
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Moves</h3>
+          <MoveHistory moves={moves} />
+        </div>
 
-        <Button onClick={() => router.push("/")}>
-          Home
+        <Button variant="outline" className="w-full" onClick={() => router.push("/")}>
+          Back to home
         </Button>
-      </div>
+      </aside>
     </div>
   );
 }

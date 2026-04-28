@@ -91,6 +91,22 @@ export const BOARD_SKINS: ShopItem[] = [
     preview: "🟦",
     description: "Crystal-clear futuristic glass tiles.",
   },
+  {
+    id: "dark",
+    name: "Midnight",
+    price: 800,
+    type: "board_skin",
+    preview: "⬛",
+    description: "Deep dark theme — easy on the eyes.",
+  },
+  {
+    id: "pastel",
+    name: "Pastel",
+    price: 800,
+    type: "board_skin",
+    preview: "🌸",
+    description: "Soft pastel pinks for a calm vibe.",
+  },
 ];
 
 export function boardColors(skin: string): { light: string; dark: string } {
@@ -115,7 +131,36 @@ export function boardColors(skin: string): { light: string; dark: string } {
         light: "var(--board-light-glass)",
         dark: "var(--board-dark-glass)",
       };
+    case "dark":
+      return {
+        light: "var(--board-light-dark)",
+        dark: "var(--board-dark-dark)",
+      };
+    case "pastel":
+      return {
+        light: "var(--board-light-pastel)",
+        dark: "var(--board-dark-pastel)",
+      };
     default:
       return { light: "var(--board-light)", dark: "var(--board-dark)" };
+  }
+}
+
+/**
+ * CSS filter applied to the chess pieces to visually differentiate skins.
+ * react-chessboard ships a single SVG piece set, so we restyle it via filters.
+ */
+export function pieceFilterForSkin(skin: string): string {
+  switch (skin) {
+    case "neon":
+      return "drop-shadow(0 0 6px oklch(0.78 0.2 300)) hue-rotate(260deg) saturate(1.6)";
+    case "wooden":
+      return "sepia(0.7) saturate(1.4) hue-rotate(-10deg) brightness(0.95)";
+    case "cyber":
+      return "hue-rotate(160deg) saturate(1.4) contrast(1.15) drop-shadow(0 0 4px oklch(0.7 0.18 200))";
+    case "minimal":
+      return "grayscale(1) contrast(1.1)";
+    default:
+      return "none";
   }
 }
