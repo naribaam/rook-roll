@@ -555,7 +555,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      game_mode: ["ai", "multiplayer"],
+      game_mode: ["ai", "multiplayer", "local"],
       game_result: ["white_win", "black_win", "draw", "aborted"],
       game_status: ["waiting", "active", "finished"],
       item_type: ["piece_skin", "board_skin"],
