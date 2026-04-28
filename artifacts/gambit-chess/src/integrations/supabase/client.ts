@@ -7,7 +7,6 @@ import type { Database } from "./types";
 // values so production deployments never start up "blank".
 const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.VITE_SUPABASE_URL ||
   "https://yjybqjszpioblsvlgfer.supabase.co";
 
 const SUPABASE_ANON_KEY =

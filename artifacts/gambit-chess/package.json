@@ -78,7 +78,6 @@
     "@lovable.dev/cloud-auth-js": "^1.1.1",
     "@supabase/supabase-js": "^2.104.1",
     "chess.js": "^1.4.0",
-    "next": "^16.2.4",
     "react-chessboard": "^5.10.0"
   }
 }
