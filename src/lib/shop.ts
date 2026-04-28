@@ -91,6 +91,22 @@ export const BOARD_SKINS: ShopItem[] = [
     preview: "🟦",
     description: "Crystal-clear futuristic glass tiles.",
   },
+  {
+    id: "dark",
+    name: "Midnight",
+    price: 800,
+    type: "board_skin",
+    preview: "⬛",
+    description: "Deep dark theme — easy on the eyes.",
+  },
+  {
+    id: "pastel",
+    name: "Pastel",
+    price: 800,
+    type: "board_skin",
+    preview: "🌸",
+    description: "Soft pastel pinks for a calm vibe.",
+  },
 ];
 
 export function boardColors(skin: string): { light: string; dark: string } {
@@ -115,7 +131,36 @@ export function boardColors(skin: string): { light: string; dark: string } {
         light: "var(--board-light-glass)",
         dark: "var(--board-dark-glass)",
       };
+    case "dark":
+      return {
+        light: "var(--board-light-dark)",
+        dark: "var(--board-dark-dark)",
+      };
+    case "pastel":
+      return {
+        light: "var(--board-light-pastel)",
+        dark: "var(--board-dark-pastel)",
+      };
     default:
       return { light: "var(--board-light)", dark: "var(--board-dark)" };
+  }
+}
+
+/**
+ * Mapping piece skin id -> react-chessboard `pieces` style key.
+ * react-chessboard ships several built-in piece sets we leverage here.
+ */
+export function piecesForSkin(skin: string): string {
+  switch (skin) {
+    case "neon":
+      return "alpha";
+    case "wooden":
+      return "wikipedia";
+    case "cyber":
+      return "cburnett";
+    case "minimal":
+      return "alpha";
+    default:
+      return "wikipedia";
   }
 }
