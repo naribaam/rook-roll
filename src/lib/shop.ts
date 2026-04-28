@@ -147,20 +147,20 @@ export function boardColors(skin: string): { light: string; dark: string } {
 }
 
 /**
- * Mapping piece skin id -> react-chessboard `pieces` style key.
- * react-chessboard ships several built-in piece sets we leverage here.
+ * CSS filter applied to the chess pieces to visually differentiate skins.
+ * react-chessboard ships a single SVG piece set, so we restyle it via filters.
  */
-export function piecesForSkin(skin: string): string {
+export function pieceFilterForSkin(skin: string): string {
   switch (skin) {
     case "neon":
-      return "alpha";
+      return "drop-shadow(0 0 6px oklch(0.78 0.2 300)) hue-rotate(260deg) saturate(1.6)";
     case "wooden":
-      return "wikipedia";
+      return "sepia(0.7) saturate(1.4) hue-rotate(-10deg) brightness(0.95)";
     case "cyber":
-      return "cburnett";
+      return "hue-rotate(160deg) saturate(1.4) contrast(1.15) drop-shadow(0 0 4px oklch(0.7 0.18 200))";
     case "minimal":
-      return "alpha";
+      return "grayscale(1) contrast(1.1)";
     default:
-      return "wikipedia";
+      return "none";
   }
 }
