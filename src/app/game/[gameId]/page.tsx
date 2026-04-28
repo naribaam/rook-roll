@@ -184,7 +184,7 @@ function Inner() {
                   {
                     startSquare: analysis[cursor].bestMove!.slice(0, 2),
                     endSquare: analysis[cursor].bestMove!.slice(2, 4),
-                    color: "rgba(34,197,94,0.7)",
+                    color: "#22c55eb3",
                   },
                 ]
               : []

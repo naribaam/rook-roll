@@ -64,6 +64,9 @@ function toAuthError(error: AuthError): AuthErrorInfo {
   if (msg.includes("network") || msg.includes("fetch")) {
     return { message: "Network error — please check your connection", code: error.status?.toString() };
   }
+  if (msg.includes("unsupported provider") || msg.includes("oauth secret") || msg.includes("provider")) {
+    return { message: "This sign-in method is not available. Please use email/password instead.", code: error.status?.toString() };
+  }
   return { message: error.message || "Authentication failed", code: error.status?.toString() };
 }
 

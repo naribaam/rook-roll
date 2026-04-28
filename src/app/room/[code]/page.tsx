@@ -12,7 +12,7 @@ import { ChessClock } from "@/components/ChessClock";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { Copy, Flag, Users, Loader as Loader2, Handshake, X } from "lucide-react";
+import { Copy, Flag, Users, Loader2, Handshake, X } from "lucide-react";
 import { toast } from "sonner";
 
 type MoveRow = {

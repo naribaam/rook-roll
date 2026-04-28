@@ -2,11 +2,17 @@ import { Chessboard } from "react-chessboard";
 import { boardColors, pieceFilterForSkin } from "@/lib/shop";
 import type { CSSProperties } from "react";
 
+type Arrow = {
+  startSquare: string;
+  endSquare: string;
+  color: string;
+};
+
 type Props = {
   position: string; // FEN
   orientation?: "white" | "black";
   onPieceDrop?: (sourceSquare: string, targetSquare: string) => boolean;
-  arrows?: { startSquare: string; endSquare: string; color: string }[];
+  arrows?: Arrow[];
   squareStyles?: Record<string, CSSProperties>;
   boardSkin?: string;
   pieceSkin?: string;
@@ -25,6 +31,16 @@ export function ChessBoardView({
 }: Props) {
   const colors = boardColors(boardSkin);
   const filter = pieceFilterForSkin(pieceSkin);
+
+  // Handler that matches react-chessboard v5 API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handlePieceDrop = onPieceDrop
+    ? (args: { piece: unknown; sourceSquare: string; targetSquare: string | null }): boolean => {
+        if (!args.targetSquare) return false;
+        return onPieceDrop(args.sourceSquare, args.targetSquare);
+      }
+    : undefined;
+
   return (
     <div
       className="rounded-2xl bg-card p-3 shadow-[var(--shadow-board)] ring-1 ring-border/60"
@@ -50,10 +66,9 @@ export function ChessBoardView({
             borderRadius: "0.75rem",
             overflow: "hidden",
           },
-          onPieceDrop: ({ sourceSquare, targetSquare }) => {
-            if (!targetSquare || !onPieceDrop) return false;
-            return onPieceDrop(sourceSquare, targetSquare);
-          },
+          // Cast to any to avoid complex type mismatch with react-chessboard internal types
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onPieceDrop: handlePieceDrop as any,
         }}
       />
     </div>
